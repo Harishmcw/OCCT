@@ -6,6 +6,7 @@
 name: Build and Test OCCT on Multiple Platforms
 
 on:
+  workflow_dispatch:
   pull_request:
     branches:
       - '**'
