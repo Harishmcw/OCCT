@@ -58,13 +58,6 @@ runs:
         name: ${{ inputs.install-artifact-name }}
         path: install
 
-    - name: Download and extract Mesa3D (Windows)
-      if: ${{ inputs.platform == 'windows' }}
-      run: |
-        curl -L -o mesa3d.7z https://github.com/pal1000/mesa-dist-win/releases/download/24.3.2/mesa3d-24.3.2-release-mingw.7z
-        7z x mesa3d.7z -omesa3d
-      shell: pwsh
-
     - name: Run system-wide deployment (Windows)
       if: ${{ inputs.platform == 'windows' }}
       run: |
