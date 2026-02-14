@@ -35,6 +35,15 @@ runs:
       if: ${{ inputs.platform == 'linux' }}
       uses: ./.github/actions/setup-xvfb-mesa
 
+    - name: Download and extract test data (Windows)
+      if: ${{ inputs.platform == 'windows' }}
+      run: |
+        cd data
+        Invoke-WebRequest -Uri https://github.com/Open-Cascade-SAS/OCCT/releases/download/V7_9_0_beta1/opencascade-dataset-7.9.0.zip -OutFile opencascade-dataset-7.9.0.zip
+        Expand-Archive -Path opencascade-dataset-7.9.0.zip -DestinationPath .
+        Remove-Item opencascade-dataset-7.9.0.zip
+      shell: pwsh
+
     - name: Download test data (macOS/Linux)
       if: ${{ (inputs.platform == 'macos' || inputs.platform == 'linux') }}
       run: |
