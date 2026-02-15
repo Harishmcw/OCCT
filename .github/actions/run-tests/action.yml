@@ -61,7 +61,7 @@ runs:
     - name: Download and extract Mesa3D-llvmpipe to install (Windows x64)
       if: ${{ inputs.platform == 'windows' && runner.arch == 'x64' }}
       run: |
-        curl -L -o mesa3d-x64.7z https://github.com/mmozeiko/build-mesa/releases/download/26.0.0/mesa-llvmpipe-x64-26.0.0.7z
+        curl -L -o mesa3d-x64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-x64-24.3.2.zip
         7z x mesa3d-x64.7z -oinstall\win64\vc14\bin -y
       shell: pwsh
   
