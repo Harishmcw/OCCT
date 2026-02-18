@@ -24,8 +24,7 @@
 #include <gp_Hypr.hxx>
 #include <gp_Lin.hxx>
 #include <gp_Parab.hxx>
-#include <gp_Pnt.hxx>
-#include <gp_Vec.hxx>
+#include <Standard_Failure.hxx>
 #include <Standard_NotImplemented.hxx>
 
 IMPLEMENT_STANDARD_RTTIEXT(Adaptor3d_Curve, Standard_Transient)
@@ -252,4 +251,47 @@ occ::handle<Geom_BSplineCurve> Adaptor3d_Curve::BSpline() const
 occ::handle<Geom_OffsetCurve> Adaptor3d_Curve::OffsetCurve() const
 {
   throw Standard_NotImplemented("Adaptor3d_Curve::OffsetCurve");
+}
+
+//=================================================================================================
+
+gp_Pnt Adaptor3d_Curve::EvalD0(double theU) const
+{
+  gp_Pnt aP;
+  D0(theU, aP);
+  return aP;
+}
+
+//=================================================================================================
+
+Geom_Curve::ResD1 Adaptor3d_Curve::EvalD1(double theU) const
+{
+  Geom_Curve::ResD1 aResult;
+  D1(theU, aResult.Point, aResult.D1);
+  return aResult;
+}
+
+//=================================================================================================
+
+Geom_Curve::ResD2 Adaptor3d_Curve::EvalD2(double theU) const
+{
+  Geom_Curve::ResD2 aResult;
+  D2(theU, aResult.Point, aResult.D1, aResult.D2);
+  return aResult;
+}
+
+//=================================================================================================
+
+Geom_Curve::ResD3 Adaptor3d_Curve::EvalD3(double theU) const
+{
+  Geom_Curve::ResD3 aResult;
+  D3(theU, aResult.Point, aResult.D1, aResult.D2, aResult.D3);
+  return aResult;
+}
+
+//=================================================================================================
+
+gp_Vec Adaptor3d_Curve::EvalDN(double theU, int theN) const
+{
+  return DN(theU, theN);
 }

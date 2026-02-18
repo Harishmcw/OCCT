@@ -78,10 +78,7 @@ void BRepTopAdaptor_TopolTool::Initialize(const occ::handle<Adaptor3d_Surface>& 
   TopoDS_Shape s_wnt = brhs->Face();
   s_wnt.Orientation(TopAbs_FORWARD);
   myFace = TopoDS::Face(s_wnt);
-  if (myFClass2d != nullptr)
-  {
-    delete (BRepTopAdaptor_FClass2d*)myFClass2d;
-  }
+  delete (BRepTopAdaptor_FClass2d*)myFClass2d;
   myFClass2d   = nullptr;
   myNbSamplesU = -1;
   myS          = S;
@@ -205,11 +202,8 @@ bool BRepTopAdaptor_TopolTool::IsThePointOn(const gp_Pnt2d& P,
 
 void BRepTopAdaptor_TopolTool::Destroy()
 {
-  if (myFClass2d != nullptr)
-  {
-    delete (BRepTopAdaptor_FClass2d*)myFClass2d;
-    myFClass2d = nullptr;
-  }
+  delete (BRepTopAdaptor_FClass2d*)myFClass2d;
+  myFClass2d = nullptr;
 }
 
 //=================================================================================================
@@ -465,11 +459,10 @@ void BRepTopAdaptor_TopolTool::ComputeSamplePoints()
   {
     if (typS == GeomAbs_BSplineSurface)
     {
-      const occ::handle<Geom_BSplineSurface>& Bspl = myS->BSpline();
-      int                                     nbup = Bspl->NbUPoles();
-      int                                     nbvp = Bspl->NbVPoles();
-      NCollection_Array2<gp_Pnt>              array2(1, nbup, 1, nbvp);
-      Bspl->Poles(array2);
+      const occ::handle<Geom_BSplineSurface>& Bspl   = myS->BSpline();
+      int                                     nbup   = Bspl->NbUPoles();
+      int                                     nbvp   = Bspl->NbVPoles();
+      const NCollection_Array2<gp_Pnt>&       array2 = Bspl->Poles();
       Analyse(array2, nbup, nbvp, myNbSamplesU, myNbSamplesV);
       nbsu = myNbSamplesU;
       nbsv = myNbSamplesV;
@@ -477,11 +470,10 @@ void BRepTopAdaptor_TopolTool::ComputeSamplePoints()
     }
     else if (typS == GeomAbs_BezierSurface)
     {
-      const occ::handle<Geom_BezierSurface>& Bez  = myS->Bezier();
-      int                                    nbup = Bez->NbUPoles();
-      int                                    nbvp = Bez->NbVPoles();
-      NCollection_Array2<gp_Pnt>             array2(1, nbup, 1, nbvp);
-      Bez->Poles(array2);
+      const occ::handle<Geom_BezierSurface>& Bez    = myS->Bezier();
+      int                                    nbup   = Bez->NbUPoles();
+      int                                    nbvp   = Bez->NbVPoles();
+      const NCollection_Array2<gp_Pnt>&      array2 = Bez->Poles();
       Analyse(array2, nbup, nbvp, myNbSamplesU, myNbSamplesV);
       nbsu = myNbSamplesU;
       nbsv = myNbSamplesV;

@@ -18,15 +18,13 @@
 #include <gp_Pnt.hxx>
 #include <NCollection_Array1.hxx>
 #include <NCollection_Array2.hxx>
-#include <NCollection_HArray1.hxx>
-#include <NCollection_HArray2.hxx>
 
 namespace
 {
 
 //! Threshold for using cache vs direct evaluation.
 //! For small spans (few points), direct BSplSLib evaluation is faster than building cache.
-constexpr int THE_CACHE_THRESHOLD = 4;
+constexpr int THE_CACHE_THRESHOLD = 2;
 
 //! Helper structure holding extracted B-spline surface data.
 struct SurfaceData
@@ -49,16 +47,9 @@ bool extractSurfaceData(const occ::handle<Geom_BSplineSurface>& theGeom, Surface
   if (theGeom.IsNull())
     return false;
 
-  const occ::handle<NCollection_HArray1<double>>& aUFK   = theGeom->HArrayUFlatKnots();
-  const occ::handle<NCollection_HArray1<double>>& aVFK   = theGeom->HArrayVFlatKnots();
-  const occ::handle<NCollection_HArray2<gp_Pnt>>& aPoles = theGeom->HArrayPoles();
-
-  if (aUFK.IsNull() || aVFK.IsNull() || aPoles.IsNull())
-    return false;
-
-  theData.UFlatKnots  = &aUFK->Array1();
-  theData.VFlatKnots  = &aVFK->Array1();
-  theData.Poles       = &aPoles->Array2();
+  theData.UFlatKnots  = &theGeom->UKnotSequence();
+  theData.VFlatKnots  = &theGeom->VKnotSequence();
+  theData.Poles       = &theGeom->Poles();
   theData.Weights     = theGeom->Weights();
   theData.UDegree     = theGeom->UDegree();
   theData.VDegree     = theGeom->VDegree();

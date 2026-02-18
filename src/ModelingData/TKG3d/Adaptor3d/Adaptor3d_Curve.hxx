@@ -17,6 +17,7 @@
 #ifndef _Adaptor3d_Curve_HeaderFile
 #define _Adaptor3d_Curve_HeaderFile
 
+#include <Geom_Curve.hxx>
 #include <gp_Circ.hxx>
 #include <gp_Elips.hxx>
 #include <gp_Hypr.hxx>
@@ -28,8 +29,6 @@
 #include <NCollection_Array1.hxx>
 #include <GeomAbs_CurveType.hxx>
 
-class gp_Pnt;
-class gp_Vec;
 class Geom_BezierCurve;
 class Geom_BSplineCurve;
 class Geom_OffsetCurve;
@@ -153,6 +152,26 @@ public:
   Standard_EXPORT virtual occ::handle<Geom_BSplineCurve> BSpline() const;
 
   Standard_EXPORT virtual occ::handle<Geom_OffsetCurve> OffsetCurve() const;
+
+  //! Computes the point of parameter U on the curve.
+  //! Raises an exception on failure.
+  [[nodiscard]] Standard_EXPORT virtual gp_Pnt EvalD0(double U) const;
+
+  //! Computes the point and first derivative at parameter U.
+  //! Raises an exception on failure.
+  [[nodiscard]] Standard_EXPORT virtual Geom_Curve::ResD1 EvalD1(double U) const;
+
+  //! Computes the point and first two derivatives at parameter U.
+  //! Raises an exception on failure.
+  [[nodiscard]] Standard_EXPORT virtual Geom_Curve::ResD2 EvalD2(double U) const;
+
+  //! Computes the point and first three derivatives at parameter U.
+  //! Raises an exception on failure.
+  [[nodiscard]] Standard_EXPORT virtual Geom_Curve::ResD3 EvalD3(double U) const;
+
+  //! Computes the Nth derivative at parameter U.
+  //! Raises an exception on failure.
+  [[nodiscard]] Standard_EXPORT virtual gp_Vec EvalDN(double U, int N) const;
 
   Standard_EXPORT ~Adaptor3d_Curve() override;
 };

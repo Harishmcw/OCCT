@@ -18,6 +18,7 @@
 #include <Standard_OutOfRange.hxx>
 #include <NCollection_DefaultHasher.hxx>
 
+#include <functional>
 #include <new>
 #include <optional>
 #include <type_traits>
@@ -154,6 +155,12 @@ public:
     //! Get current value (alias for Key for compatibility)
     const TheKeyType& Value() const { return Key(); }
 
+    //! Performs comparison of two iterators.
+    bool IsEqual(const Iterator& theOther) const noexcept
+    {
+      return mySlots == theOther.mySlots && myIndex == theOther.myIndex;
+    }
+
   private:
     const Slot* mySlots;
     size_t      myCapacity;
@@ -183,6 +190,36 @@ public:
     }
   }
 
+  //! Constructor with custom hasher (copy).
+  //! @param theHasher custom hasher instance
+  //! @param theNbBuckets initial capacity hint
+  explicit NCollection_FlatMap(const Hasher& theHasher, const int theNbBuckets = 0)
+      : mySlots(nullptr),
+        myCapacity(0),
+        mySize(0),
+        myHasher(theHasher)
+  {
+    if (theNbBuckets > 0)
+    {
+      reserve(static_cast<size_t>(theNbBuckets));
+    }
+  }
+
+  //! Constructor with custom hasher (move).
+  //! @param theHasher custom hasher instance (moved)
+  //! @param theNbBuckets initial capacity hint
+  explicit NCollection_FlatMap(Hasher&& theHasher, const int theNbBuckets = 0)
+      : mySlots(nullptr),
+        myCapacity(0),
+        mySize(0),
+        myHasher(std::move(theHasher))
+  {
+    if (theNbBuckets > 0)
+    {
+      reserve(static_cast<size_t>(theNbBuckets));
+    }
+  }
+
   //! Copy constructor
   NCollection_FlatMap(const NCollection_FlatMap& theOther)
       : mySlots(nullptr),
@@ -192,7 +229,14 @@ public:
   {
     if (theOther.mySize > 0)
     {
-      reserve(theOther.myCapacity);
+      // Allocate same capacity as the source (not through reserve which may change capacity)
+      mySlots = static_cast<Slot*>(Standard::Allocate(theOther.myCapacity * sizeof(Slot)));
+      for (size_t i = 0; i < theOther.myCapacity; ++i)
+      {
+        new (&mySlots[i]) Slot();
+      }
+      myCapacity = theOther.myCapacity;
+
       for (size_t i = 0; i < theOther.myCapacity; ++i)
       {
         if (theOther.mySlots[i].myState == SlotState::Used)
@@ -228,9 +272,17 @@ public:
     if (this != &theOther)
     {
       Clear(true);
+      myHasher = theOther.myHasher;
       if (theOther.mySize > 0)
       {
-        reserve(theOther.myCapacity);
+        // Allocate same capacity as the source (not through reserve which may change capacity)
+        mySlots = static_cast<Slot*>(Standard::Allocate(theOther.myCapacity * sizeof(Slot)));
+        for (size_t i = 0; i < theOther.myCapacity; ++i)
+        {
+          new (&mySlots[i]) Slot();
+        }
+        myCapacity = theOther.myCapacity;
+
         for (size_t i = 0; i < theOther.myCapacity; ++i)
         {
           if (theOther.mySlots[i].myState == SlotState::Used)
@@ -285,6 +337,40 @@ public:
     if (mySize == 0)
       return false;
     return findSlot(theKey).has_value();
+  }
+
+  //! Contained returns optional const reference to the key in the map.
+  //! Returns std::nullopt if the key is not found.
+  std::optional<std::reference_wrapper<const TheKeyType>> Contained(const TheKeyType& theKey) const
+  {
+    if (mySize == 0)
+      return std::nullopt;
+    const std::optional<size_t> aIdx = findSlot(theKey);
+    if (!aIdx.has_value())
+      return std::nullopt;
+    return std::cref(mySlots[*aIdx].Key());
+  }
+
+  //! Seek returns pointer to key in map. Returns NULL if not found.
+  const TheKeyType* Seek(const TheKeyType& theKey) const
+  {
+    if (mySize == 0)
+      return nullptr;
+    const std::optional<size_t> aIdx = findSlot(theKey);
+    if (!aIdx.has_value())
+      return nullptr;
+    return &mySlots[*aIdx].Key();
+  }
+
+  //! ChangeSeek returns modifiable pointer to key in map. Returns NULL if not found.
+  TheKeyType* ChangeSeek(const TheKeyType& theKey)
+  {
+    if (mySize == 0)
+      return nullptr;
+    const std::optional<size_t> aIdx = findSlot(theKey);
+    if (!aIdx.has_value())
+      return nullptr;
+    return &mySlots[*aIdx].Key();
   }
 
 public:
@@ -345,6 +431,28 @@ public:
     ensureCapacity();
     TheKeyType aTempKey(std::forward<Args>(theArgs)...);
     return emplaceImpl(std::move(aTempKey), std::false_type{}, std::true_type{});
+  }
+
+  //! TryEmplace constructs key in-place only if not already present.
+  //! @param theArgs arguments forwarded to key constructor
+  //! @return true if key was newly added, false if key already existed
+  template <typename... Args>
+  bool TryEmplace(Args&&... theArgs)
+  {
+    ensureCapacity();
+    TheKeyType aTempKey(std::forward<Args>(theArgs)...);
+    return emplaceImpl(std::move(aTempKey), std::true_type{}, std::false_type{});
+  }
+
+  //! TryEmplaced constructs key in-place only if not already present.
+  //! @param theArgs arguments forwarded to key constructor
+  //! @return const reference to the key (existing or newly added)
+  template <typename... Args>
+  const TheKeyType& TryEmplaced(Args&&... theArgs)
+  {
+    ensureCapacity();
+    TheKeyType aTempKey(std::forward<Args>(theArgs)...);
+    return emplaceImpl(std::move(aTempKey), std::true_type{}, std::true_type{});
   }
 
   //! Remove key from set
@@ -409,6 +517,9 @@ public:
     std::swap(mySize, theOther.mySize);
     std::swap(myHasher, theOther.myHasher);
   }
+
+  //! Returns const reference to the hasher.
+  const Hasher& GetHasher() const noexcept { return myHasher; }
 
   //! Reserve capacity for at least theN elements
   void reserve(size_t theN)

@@ -25,6 +25,8 @@
 #include <Geom_Curve.hxx>
 #include <Geom_CylindricalSurface.hxx>
 #include <Geom_ElementarySurface.hxx>
+#include "Geom_EvalRepSurfaceDesc.hxx"
+#include "Geom_EvalRepUtils.pxx"
 #include <Geom_Ellipse.hxx>
 #include <Geom_Geometry.hxx>
 #include <Geom_OffsetCurve.hxx>
@@ -53,6 +55,7 @@
 #include <Standard_ConstructionError.hxx>
 #include <Standard_NotImplemented.hxx>
 #include <Standard_NumericError.hxx>
+#include <Standard_ProgramError.hxx>
 #include <Standard_RangeError.hxx>
 #include <Standard_Type.hxx>
 #include <NCollection_Array1.hxx>
@@ -63,6 +66,44 @@
 IMPLEMENT_STANDARD_RTTIEXT(Geom_OffsetSurface, Geom_Surface)
 
 static const double MyAngularToleranceForG1 = Precision::Angular();
+
+namespace
+{
+occ::handle<Geom_EvalRepSurfaceDesc::Base> makeFullSurfaceRep(
+  const occ::handle<Geom_Surface>& theSurface)
+{
+  if (theSurface.IsNull())
+  {
+    return occ::handle<Geom_EvalRepSurfaceDesc::Base>();
+  }
+  occ::handle<Geom_EvalRepSurfaceDesc::Full> aDesc = new Geom_EvalRepSurfaceDesc::Full();
+  aDesc->Representation                            = theSurface;
+  return aDesc;
+}
+
+occ::handle<Geom_Surface> directRepSurface(const Geom_OffsetSurface& theSurface)
+{
+  const occ::handle<Geom_EvalRepSurfaceDesc::Base>& aDesc = theSurface.EvalRepresentation();
+  if (aDesc.IsNull())
+  {
+    return occ::handle<Geom_Surface>();
+  }
+  if (aDesc->GetKind() != Geom_EvalRepSurfaceDesc::Base::Kind::Full)
+  {
+    return occ::handle<Geom_Surface>();
+  }
+  return aDesc->Representation;
+}
+} // namespace
+
+//=================================================================================================
+
+void Geom_OffsetSurface::SetEvalRepresentation(
+  const occ::handle<Geom_EvalRepSurfaceDesc::Base>& theDesc)
+{
+  Geom_EvalRepUtils::ValidateSurfaceDesc(theDesc, this);
+  myEvalRep = theDesc;
+}
 
 //=================================================================================================
 
@@ -79,15 +120,13 @@ occ::handle<Geom_Geometry> Geom_OffsetSurface::Copy() const
 
 Geom_OffsetSurface::Geom_OffsetSurface(const Geom_OffsetSurface& theOther)
     : basisSurf(occ::down_cast<Geom_Surface>(theOther.basisSurf->Copy())),
-      equivSurf(theOther.equivSurf.IsNull()
-                  ? occ::handle<Geom_Surface>()
-                  : occ::down_cast<Geom_Surface>(theOther.equivSurf->Copy())),
+      myEvalRep(Geom_EvalRepUtils::CloneSurfaceDesc(theOther.myEvalRep)),
       offsetValue(theOther.offsetValue),
       myOscSurf(theOther.myOscSurf ? std::make_unique<Geom_OsculatingSurface>(*theOther.myOscSurf)
                                    : nullptr),
       myBasisSurfContinuity(theOther.myBasisSurfContinuity)
 {
-  // Deep copy without validation - source surface is already validated
+  // Deep copy without validation - source surface is already validated.
 }
 
 //=================================================================================================
@@ -109,6 +148,7 @@ Geom_OffsetSurface::Geom_OffsetSurface(const occ::handle<Geom_Surface>& theSurf,
 void Geom_OffsetSurface::SetBasisSurface(const occ::handle<Geom_Surface>& S,
                                          const bool                       isNotCheckC0)
 {
+  ClearEvalRepresentation();
   double aUf, aUl, aVf, aVl;
   S->Bounds(aUf, aUl, aVf, aVl);
 
@@ -215,7 +255,8 @@ void Geom_OffsetSurface::SetBasisSurface(const occ::handle<Geom_Surface>& S,
     basisSurf = aCheckingSurf;
   }
 
-  equivSurf = Surface();
+  const occ::handle<Geom_Surface> aSurfaceRep = Surface();
+  SetEvalRepresentation(makeFullSurfaceRep(aSurfaceRep));
 
   if (aCheckingSurf->IsKind(STANDARD_TYPE(Geom_BSplineSurface))
       || aCheckingSurf->IsKind(STANDARD_TYPE(Geom_BezierSurface)))
@@ -233,18 +274,18 @@ void Geom_OffsetSurface::SetBasisSurface(const occ::handle<Geom_Surface>& S,
 
 void Geom_OffsetSurface::SetOffsetValue(const double D)
 {
+  ClearEvalRepresentation();
   offsetValue = D;
-  equivSurf   = Surface();
+  SetEvalRepresentation(makeFullSurfaceRep(Surface()));
 }
 
 //=================================================================================================
 
 void Geom_OffsetSurface::UReverse()
 {
+  ClearEvalRepresentation();
   basisSurf->UReverse();
   offsetValue = -offsetValue;
-  if (!equivSurf.IsNull())
-    equivSurf->UReverse();
 }
 
 //=================================================================================================
@@ -258,10 +299,9 @@ double Geom_OffsetSurface::UReversedParameter(const double U) const
 
 void Geom_OffsetSurface::VReverse()
 {
+  ClearEvalRepresentation();
   basisSurf->VReverse();
   offsetValue = -offsetValue;
-  if (!equivSurf.IsNull())
-    equivSurf->VReverse();
 }
 
 //=================================================================================================
@@ -298,158 +338,148 @@ GeomAbs_Shape Geom_OffsetSurface::Continuity() const
 
 //=================================================================================================
 
-void Geom_OffsetSurface::D0(const double U, const double V, gp_Pnt& P) const
+gp_Pnt Geom_OffsetSurface::EvalD0(const double U, const double V) const
 {
 #ifdef CHECK
   if (myBasisSurfContinuity == GeomAbs_C0)
-    throw Geom_UndefinedValue();
-#endif
-  if (!equivSurf.IsNull())
   {
-    equivSurf->D0(U, V, P);
-    return;
+    throw Geom_UndefinedValue("Geom_OffsetSurface::EvalD0");
+  }
+#endif
+  gp_Pnt aEvalRepResult;
+  if (Geom_EvalRepUtils::TryEvalSurfaceD0(myEvalRep, U, V, aEvalRepResult))
+  {
+    return aEvalRepResult;
   }
 
-  if (!Geom_OffsetSurfaceUtils::EvaluateD0(U, V, basisSurf.get(), offsetValue, myOscSurf.get(), P))
+  gp_Pnt aP;
+  if (!Geom_OffsetSurfaceUtils::EvaluateD0(U, V, basisSurf.get(), offsetValue, myOscSurf.get(), aP))
   {
-    throw Geom_UndefinedValue(
-      "Geom_OffsetSurface::D0(): Unable to calculate value at singular point");
+    throw Geom_UndefinedValue("Geom_OffsetSurface::EvalD0");
   }
+  return aP;
 }
 
 //=================================================================================================
 
-void Geom_OffsetSurface::D1(const double U,
-                            const double V,
-                            gp_Pnt&      P,
-                            gp_Vec&      D1U,
-                            gp_Vec&      D1V) const
+Geom_Surface::ResD1 Geom_OffsetSurface::EvalD1(const double U, const double V) const
 {
 #ifdef CHECK
   if (myBasisSurfContinuity == GeomAbs_C0 || myBasisSurfContinuity == GeomAbs_C1)
-    throw Geom_UndefinedDerivative();
-#endif
-  if (!equivSurf.IsNull())
   {
-    equivSurf->D1(U, V, P, D1U, D1V);
-    return;
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD1");
+  }
+#endif
+  Geom_Surface::ResD1 aEvalRepResult;
+  if (Geom_EvalRepUtils::TryEvalSurfaceD1(myEvalRep, U, V, aEvalRepResult))
+  {
+    return aEvalRepResult;
   }
 
+  Geom_Surface::ResD1 aResult;
   if (!Geom_OffsetSurfaceUtils::EvaluateD1(U,
                                            V,
                                            basisSurf.get(),
                                            offsetValue,
                                            myOscSurf.get(),
-                                           P,
-                                           D1U,
-                                           D1V))
+                                           aResult.Point,
+                                           aResult.D1U,
+                                           aResult.D1V))
   {
-    throw Geom_UndefinedDerivative(
-      "Geom_OffsetSurface::D1(): Unable to calculate derivative at singular point");
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD1");
   }
+  return aResult;
 }
 
 //=================================================================================================
 
-void Geom_OffsetSurface::D2(const double U,
-                            const double V,
-                            gp_Pnt&      P,
-                            gp_Vec&      D1U,
-                            gp_Vec&      D1V,
-                            gp_Vec&      D2U,
-                            gp_Vec&      D2V,
-                            gp_Vec&      D2UV) const
+Geom_Surface::ResD2 Geom_OffsetSurface::EvalD2(const double U, const double V) const
 {
 #ifdef CHECK
   if (myBasisSurfContinuity == GeomAbs_C0 || myBasisSurfContinuity == GeomAbs_C1
       || myBasisSurfContinuity == GeomAbs_C2)
-    throw Geom_UndefinedDerivative();
-#endif
-  if (!equivSurf.IsNull())
   {
-    equivSurf->D2(U, V, P, D1U, D1V, D2U, D2V, D2UV);
-    return;
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD2");
+  }
+#endif
+  Geom_Surface::ResD2 aEvalRepResult;
+  if (Geom_EvalRepUtils::TryEvalSurfaceD2(myEvalRep, U, V, aEvalRepResult))
+  {
+    return aEvalRepResult;
   }
 
+  Geom_Surface::ResD2 aResult;
   if (!Geom_OffsetSurfaceUtils::EvaluateD2(U,
                                            V,
                                            basisSurf.get(),
                                            offsetValue,
                                            myOscSurf.get(),
-                                           P,
-                                           D1U,
-                                           D1V,
-                                           D2U,
-                                           D2V,
-                                           D2UV))
+                                           aResult.Point,
+                                           aResult.D1U,
+                                           aResult.D1V,
+                                           aResult.D2U,
+                                           aResult.D2V,
+                                           aResult.D2UV))
   {
-    throw Geom_UndefinedDerivative(
-      "Geom_OffsetSurface::D2(): Unable to calculate derivative at singular point");
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD2");
   }
+  return aResult;
 }
 
 //=================================================================================================
 
-void Geom_OffsetSurface::D3(const double U,
-                            const double V,
-                            gp_Pnt&      P,
-                            gp_Vec&      D1U,
-                            gp_Vec&      D1V,
-                            gp_Vec&      D2U,
-                            gp_Vec&      D2V,
-                            gp_Vec&      D2UV,
-                            gp_Vec&      D3U,
-                            gp_Vec&      D3V,
-                            gp_Vec&      D3UUV,
-                            gp_Vec&      D3UVV) const
+Geom_Surface::ResD3 Geom_OffsetSurface::EvalD3(const double U, const double V) const
 {
 #ifdef CHECK
   if (!(basisSurf->IsCNu(4) && basisSurf->IsCNv(4)))
   {
-    throw Geom_UndefinedDerivative();
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD3");
   }
 #endif
-  if (!equivSurf.IsNull())
+  Geom_Surface::ResD3 aEvalRepResult;
+  if (Geom_EvalRepUtils::TryEvalSurfaceD3(myEvalRep, U, V, aEvalRepResult))
   {
-    equivSurf->D3(U, V, P, D1U, D1V, D2U, D2V, D2UV, D3U, D3V, D3UUV, D3UVV);
-    return;
+    return aEvalRepResult;
   }
 
+  Geom_Surface::ResD3 aResult;
   if (!Geom_OffsetSurfaceUtils::EvaluateD3(U,
                                            V,
                                            basisSurf.get(),
                                            offsetValue,
                                            myOscSurf.get(),
-                                           P,
-                                           D1U,
-                                           D1V,
-                                           D2U,
-                                           D2V,
-                                           D2UV,
-                                           D3U,
-                                           D3V,
-                                           D3UUV,
-                                           D3UVV))
+                                           aResult.Point,
+                                           aResult.D1U,
+                                           aResult.D1V,
+                                           aResult.D2U,
+                                           aResult.D2V,
+                                           aResult.D2UV,
+                                           aResult.D3U,
+                                           aResult.D3V,
+                                           aResult.D3UUV,
+                                           aResult.D3UVV))
   {
-    throw Geom_UndefinedDerivative(
-      "Geom_OffsetSurface::D3(): Unable to calculate derivative at singular point");
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalD3");
   }
+  return aResult;
 }
 
 //=================================================================================================
 
-gp_Vec Geom_OffsetSurface::DN(const double U, const double V, const int Nu, const int Nv) const
+gp_Vec Geom_OffsetSurface::EvalDN(const double U, const double V, const int Nu, const int Nv) const
 {
-  Standard_RangeError_Raise_if(Nu < 0 || Nv < 0 || Nu + Nv < 1, " ");
+  if (Nu + Nv < 1 || Nu < 0 || Nv < 0)
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalDN");
 #ifdef CHECK
   if (!(basisSurf->IsCNu(Nu) && basisSurf->IsCNv(Nv)))
   {
-    throw Geom_UndefinedDerivative();
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalDN");
   }
 #endif
-  if (!equivSurf.IsNull())
+  gp_Vec aEvalRepResult;
+  if (Geom_EvalRepUtils::TryEvalSurfaceDN(myEvalRep, U, V, Nu, Nv, aEvalRepResult))
   {
-    return equivSurf->DN(U, V, Nu, Nv);
+    return aEvalRepResult;
   }
 
   gp_Vec aResult;
@@ -462,8 +492,7 @@ gp_Vec Geom_OffsetSurface::DN(const double U, const double V, const int Nu, cons
                                            myOscSurf.get(),
                                            aResult))
   {
-    throw Geom_UndefinedDerivative(
-      "Geom_OffsetSurface::DN(): Unable to calculate derivative at singular point");
+    throw Geom_UndefinedDerivative("Geom_OffsetSurface::EvalDN");
   }
   return aResult;
 }
@@ -578,7 +607,8 @@ void Geom_OffsetSurface_VIsoEvaluator::Evaluate(int*, /*Dimension*/
 
 occ::handle<Geom_Curve> Geom_OffsetSurface::UIso(const double UU) const
 {
-  if (equivSurf.IsNull())
+  const occ::handle<Geom_Surface> anEquivSurface = directRepSurface(*this);
+  if (anEquivSurface.IsNull())
   {
     GeomAdaptor_Surface aGAsurf(basisSurf);
     if (aGAsurf.GetType() == GeomAbs_SurfaceOfExtrusion)
@@ -621,15 +651,15 @@ occ::handle<Geom_Curve> Geom_OffsetSurface::UIso(const double UU) const
     occ::handle<Geom_BSplineCurve> C = new Geom_BSplineCurve(Poles, Knots, Mults, Approx.Degree());
     return C;
   }
-  else
-    return equivSurf->UIso(UU);
+  return anEquivSurface->UIso(UU);
 }
 
 //=================================================================================================
 
 occ::handle<Geom_Curve> Geom_OffsetSurface::VIso(const double VV) const
 {
-  if (equivSurf.IsNull())
+  const occ::handle<Geom_Surface> anEquivSurface = directRepSurface(*this);
+  if (anEquivSurface.IsNull())
   {
     const int                                Num1 = 0, Num2 = 0, Num3 = 1;
     occ::handle<NCollection_HArray1<double>> T1, T2, T3 = new NCollection_HArray1<double>(1, Num3);
@@ -657,8 +687,7 @@ occ::handle<Geom_Curve> Geom_OffsetSurface::VIso(const double VV) const
     occ::handle<Geom_BSplineCurve> C = new Geom_BSplineCurve(Poles, Knots, Mults, Approx.Degree());
     return C;
   }
-  else
-    return equivSurf->VIso(VV);
+  return anEquivSurface->VIso(VV);
 }
 
 //=================================================================================================
@@ -812,9 +841,9 @@ bool Geom_OffsetSurface::IsVClosed() const
 
 void Geom_OffsetSurface::Transform(const gp_Trsf& T)
 {
+  ClearEvalRepresentation();
   basisSurf->Transform(T);
   offsetValue *= T.ScaleFactor();
-  equivSurf.Nullify();
 }
 
 //=================================================================================================
@@ -822,8 +851,11 @@ void Geom_OffsetSurface::Transform(const gp_Trsf& T)
 void Geom_OffsetSurface::TransformParameters(double& U, double& V, const gp_Trsf& T) const
 {
   basisSurf->TransformParameters(U, V, T);
-  if (!equivSurf.IsNull())
-    equivSurf->TransformParameters(U, V, T);
+  const occ::handle<Geom_Surface> anEquivSurface = directRepSurface(*this);
+  if (!anEquivSurface.IsNull())
+  {
+    anEquivSurface->TransformParameters(U, V, T);
+  }
 }
 
 //=================================================================================================
@@ -985,12 +1017,14 @@ bool Geom_OffsetSurface::VOsculatingSurface(const double                      U,
 
 void Geom_OffsetSurface::DumpJson(Standard_OStream& theOStream, int theDepth) const
 {
+  const occ::handle<Geom_Surface> anEquivSurface = directRepSurface(*this);
+
   OCCT_DUMP_TRANSIENT_CLASS_BEGIN(theOStream)
 
   OCCT_DUMP_BASE_CLASS(theOStream, theDepth, Geom_Surface)
 
   OCCT_DUMP_FIELD_VALUES_DUMPED(theOStream, theDepth, basisSurf.get())
-  OCCT_DUMP_FIELD_VALUES_DUMPED(theOStream, theDepth, equivSurf.get())
+  OCCT_DUMP_FIELD_VALUES_DUMPED(theOStream, theDepth, anEquivSurface.get())
 
   OCCT_DUMP_FIELD_VALUE_NUMERICAL(theOStream, offsetValue)
   OCCT_DUMP_FIELD_VALUE_NUMERICAL(theOStream, myBasisSurfContinuity)

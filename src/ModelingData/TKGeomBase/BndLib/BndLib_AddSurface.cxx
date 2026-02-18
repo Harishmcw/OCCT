@@ -222,17 +222,17 @@ void ComputePolesIndexes(const NCollection_Array1<double>& theKnots,
                          int&                              theOutMaxIdx)
 {
   BSplCLib::Hunt(theKnots, theMin, theOutMinIdx);
-  theOutMinIdx = std::max(theOutMinIdx, theKnots.Lower());
+  theOutMinIdx = std::clamp(theOutMinIdx, theKnots.Lower(), theKnots.Upper());
 
   BSplCLib::Hunt(theKnots, theMax, theOutMaxIdx);
   theOutMaxIdx++;
-  theOutMaxIdx = std::min(theOutMaxIdx, theKnots.Upper());
-  int mult     = theMults(theOutMaxIdx);
+  theOutMaxIdx          = std::clamp(theOutMaxIdx, theKnots.Lower(), theKnots.Upper());
+  const int aMultiplier = theMults(theOutMaxIdx);
 
   theOutMinIdx = BSplCLib::PoleIndex(theDegree, theOutMinIdx, theIsPeriodic, theMults) + 1;
   theOutMinIdx = std::max(theOutMinIdx, 1);
   theOutMaxIdx = BSplCLib::PoleIndex(theDegree, theOutMaxIdx, theIsPeriodic, theMults) + 1;
-  theOutMaxIdx += theDegree - mult;
+  theOutMaxIdx += theDegree - aMultiplier;
   if (!theIsPeriodic)
     theOutMaxIdx = std::min(theOutMaxIdx, theMaxPoleIdx);
 }
@@ -361,7 +361,7 @@ void BndLib_AddSurface::Add(const Adaptor3d_Surface& S,
         bool                       isUPeriodic = S.IsUPeriodic(), isVPeriodic = S.IsVPeriodic();
         if (Type == GeomAbs_BezierSurface)
         {
-          S.Bezier()->Poles(Tp);
+          Tp      = S.Bezier()->Poles();
           UMinIdx = 1;
           UMaxIdx = aNbUPoles;
           VMinIdx = 1;
@@ -369,7 +369,7 @@ void BndLib_AddSurface::Add(const Adaptor3d_Surface& S,
         }
         else
         {
-          aBS->Poles(Tp);
+          Tp = aBS->Poles();
 
           UMinIdx = 1;
           UMaxIdx = aNbUPoles;
@@ -378,10 +378,8 @@ void BndLib_AddSurface::Add(const Adaptor3d_Surface& S,
 
           if (UMin > anUMinParam || UMax < anUMaxParam)
           {
-            NCollection_Array1<int>    aMults(1, aBS->NbUKnots());
-            NCollection_Array1<double> aKnots(1, aBS->NbUKnots());
-            aBS->UKnots(aKnots);
-            aBS->UMultiplicities(aMults);
+            const NCollection_Array1<int>&    aMults = aBS->UMultiplicities();
+            const NCollection_Array1<double>& aKnots = aBS->UKnots();
 
             ComputePolesIndexes(aKnots,
                                 aMults,
@@ -396,10 +394,8 @@ void BndLib_AddSurface::Add(const Adaptor3d_Surface& S,
 
           if (VMin > aVMinParam || VMax < aVMaxParam)
           {
-            NCollection_Array1<int>    aMults(1, aBS->NbVKnots());
-            NCollection_Array1<double> aKnots(1, aBS->NbVKnots());
-            aBS->VKnots(aKnots);
-            aBS->VMultiplicities(aMults);
+            const NCollection_Array1<int>&    aMults = aBS->VMultiplicities();
+            const NCollection_Array1<double>& aKnots = aBS->VKnots();
 
             ComputePolesIndexes(aKnots,
                                 aMults,

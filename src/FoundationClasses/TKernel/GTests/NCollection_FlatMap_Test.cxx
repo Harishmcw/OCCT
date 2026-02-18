@@ -224,3 +224,175 @@ TEST_F(NCollection_FlatMapTest, EmplacedExistingKey)
   EXPECT_TRUE(aRef.IsEqual("World"));
   EXPECT_EQ(1, aMap.Size());
 }
+
+// Tests for Seek method
+TEST_F(NCollection_FlatMapTest, SeekFound)
+{
+  NCollection_FlatMap<int> aMap;
+  aMap.Add(10);
+  aMap.Add(20);
+  aMap.Add(30);
+
+  const int* pKey = aMap.Seek(10);
+  ASSERT_NE(nullptr, pKey);
+  EXPECT_EQ(10, *pKey);
+
+  pKey = aMap.Seek(30);
+  ASSERT_NE(nullptr, pKey);
+  EXPECT_EQ(30, *pKey);
+}
+
+TEST_F(NCollection_FlatMapTest, SeekNotFound)
+{
+  NCollection_FlatMap<int> aMap;
+  aMap.Add(10);
+
+  const int* pKey = aMap.Seek(99);
+  EXPECT_EQ(nullptr, pKey);
+
+  // Seek on empty map
+  NCollection_FlatMap<int> anEmptyMap;
+  EXPECT_EQ(nullptr, anEmptyMap.Seek(10));
+}
+
+TEST_F(NCollection_FlatMapTest, ChangeSeekModify)
+{
+  NCollection_FlatMap<TCollection_AsciiString> aMap;
+  aMap.Add("Hello");
+  aMap.Add("World");
+
+  TCollection_AsciiString* pKey = aMap.ChangeSeek("Hello");
+  ASSERT_NE(nullptr, pKey);
+  EXPECT_TRUE(pKey->IsEqual("Hello"));
+}
+
+TEST_F(NCollection_FlatMapTest, ChangeSeekNotFound)
+{
+  NCollection_FlatMap<int> aMap;
+  aMap.Add(10);
+
+  int* pKey = aMap.ChangeSeek(99);
+  EXPECT_EQ(nullptr, pKey);
+}
+
+// Tests for hasher constructor
+TEST_F(NCollection_FlatMapTest, HasherConstructorCopy)
+{
+  // Custom hasher with state
+  struct StatefulHasher
+  {
+    int mySalt;
+
+    StatefulHasher(int theSalt = 0)
+        : mySalt(theSalt)
+    {
+    }
+
+    size_t operator()(int theKey) const { return std::hash<int>{}(theKey + mySalt); }
+
+    bool operator()(int theKey1, int theKey2) const { return theKey1 == theKey2; }
+  };
+
+  StatefulHasher                           aHasher(42);
+  NCollection_FlatMap<int, StatefulHasher> aMap(aHasher, 10);
+
+  aMap.Add(1);
+  aMap.Add(2);
+  aMap.Add(3);
+
+  EXPECT_EQ(3, aMap.Size());
+  EXPECT_TRUE(aMap.Contains(1));
+  EXPECT_TRUE(aMap.Contains(2));
+  EXPECT_TRUE(aMap.Contains(3));
+
+  // Verify hasher was copied
+  const StatefulHasher& aMapHasher = aMap.GetHasher();
+  EXPECT_EQ(42, aMapHasher.mySalt);
+}
+
+TEST_F(NCollection_FlatMapTest, HasherConstructorMove)
+{
+  struct StatefulHasher
+  {
+    int mySalt;
+
+    StatefulHasher(int theSalt = 0)
+        : mySalt(theSalt)
+    {
+    }
+
+    size_t operator()(int theKey) const { return std::hash<int>{}(theKey + mySalt); }
+
+    bool operator()(int theKey1, int theKey2) const { return theKey1 == theKey2; }
+  };
+
+  NCollection_FlatMap<int, StatefulHasher> aMap(StatefulHasher(99), 10);
+
+  aMap.Add(10);
+  aMap.Add(20);
+
+  EXPECT_EQ(2, aMap.Size());
+  EXPECT_EQ(99, aMap.GetHasher().mySalt);
+}
+
+TEST_F(NCollection_FlatMapTest, CopyConstructorPreservesHasher)
+{
+  struct StatefulHasher
+  {
+    int mySalt;
+
+    StatefulHasher(int theSalt = 0)
+        : mySalt(theSalt)
+    {
+    }
+
+    size_t operator()(int theKey) const { return std::hash<int>{}(theKey + mySalt); }
+
+    bool operator()(int theKey1, int theKey2) const { return theKey1 == theKey2; }
+  };
+
+  NCollection_FlatMap<int, StatefulHasher> aMap1(StatefulHasher(123), 10);
+  aMap1.Add(1);
+  aMap1.Add(2);
+
+  // Copy construct
+  NCollection_FlatMap<int, StatefulHasher> aMap2(aMap1);
+
+  EXPECT_EQ(123, aMap2.GetHasher().mySalt);
+  EXPECT_EQ(2, aMap2.Size());
+  EXPECT_TRUE(aMap2.Contains(1));
+  EXPECT_TRUE(aMap2.Contains(2));
+}
+
+// Test iterator equality
+TEST_F(NCollection_FlatMapTest, IteratorEquality)
+{
+  NCollection_FlatMap<int> aMap;
+  aMap.Add(1);
+  aMap.Add(2);
+  aMap.Add(3);
+
+  // Test Iterator::IsEqual method directly
+  NCollection_FlatMap<int>::Iterator anIt1(aMap);
+  NCollection_FlatMap<int>::Iterator anIt2(aMap);
+  NCollection_FlatMap<int>::Iterator anEndIt;
+
+  // Two iterators at beginning should be equal
+  EXPECT_TRUE(anIt1.IsEqual(anIt2));
+
+  // Iterator at beginning should not equal end iterator
+  EXPECT_FALSE(anIt1.IsEqual(anEndIt));
+
+  // Two iterators at different positions must NOT be equal
+  anIt2.Next();
+  EXPECT_FALSE(anIt1.IsEqual(anIt2));
+
+  // Iterators at same position should be equal
+  NCollection_FlatMap<int>::Iterator anIt3(aMap);
+  anIt3.Next();
+  EXPECT_TRUE(anIt2.IsEqual(anIt3));
+
+  // End iterators should be equal
+  NCollection_FlatMap<int>::Iterator anEndIt2;
+  EXPECT_TRUE(anEndIt.IsEqual(anEndIt2));
+}
