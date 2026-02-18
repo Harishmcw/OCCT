@@ -161,7 +161,8 @@ runs:
                 -A ARM64 `
                 -D USE_FREETYPE=ON `
                 -D USE_TK=ON `
-                -D 3RDPARTY_TK_DIR=C:/Tcl `
+                -D 3RDPARTY_TK_DIR="C:/Tcl" `
+                -D 3RDPARTY_TCL_INCLUDE_DIR="C:/Tcl/include" `
                 -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
                 -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
                 -D BUILD_INCLUDE_SYMLINK=ON `
