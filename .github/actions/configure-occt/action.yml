@@ -40,15 +40,22 @@ runs:
       with:
         github-token: ${{ inputs.github-token }}
 
+    - name: Download and extract Mesa3D (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        curl -L -o mesa3d-arm64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-arm64-24.3.2.zip
+        7z x mesa3d-x64.7z -oinstall\win64\vc14\bin -y
+      shell: pwsh
+
     - name: Download and extract Mesa3D (Windows)
-      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
+      if: ${{ inputs.platform == 'windows' }}
       run: |
         curl -L -o mesa3d.7z https://github.com/pal1000/mesa-dist-win/releases/download/24.3.2/mesa3d-24.3.2-release-mingw.7z
         7z x mesa3d.7z -omesa3d
       shell: pwsh
 
     - name: Run system-wide deployment (Windows)
-      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
+      if: ${{ inputs.platform == 'windows' }}
       run: |
         cd mesa3d
         .\systemwidedeploy.cmd 1
@@ -117,7 +124,7 @@ runs:
                 -D CMAKE_BUILD_TYPE=${{ inputs.cmake-build-type }} `
                 -D INSTALL_DIR=${{ github.workspace }}/install `
                 -D BUILD_USE_VCPKG=ON `
-                -D CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+                -D CMAKE_TOOLCHAIN_FILE=%GITHUB_WORKSPACE%\vcpkg\scripts\buildsystems\vcpkg.cmake `
                 -D VCPKG_TARGET_TRIPLET=arm64-windows `
                 -D USE_D3D=ON `
                 -D USE_DRACO=ON `

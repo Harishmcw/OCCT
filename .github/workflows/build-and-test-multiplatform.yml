@@ -192,7 +192,7 @@ jobs:
         compiler: msvc
         install-artifact-name: install-windows-arm64
         test-directory-name: windows-arm64
-        test-script: .github/actions/testgrid/testwindows.tcl
+        test-script: .github/actions/testgrid/testwindowsarm.tcl
 
   retest-windows-x64:
     name: Regression Test on Windows (x64)
