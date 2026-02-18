@@ -41,14 +41,14 @@ runs:
         github-token: ${{ inputs.github-token }}
 
     - name: Download and extract Mesa3D (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         curl -L -o mesa3d.7z https://github.com/pal1000/mesa-dist-win/releases/download/24.3.2/mesa3d-24.3.2-release-mingw.7z
         7z x mesa3d.7z -omesa3d
       shell: pwsh
 
     - name: Run system-wide deployment (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         cd mesa3d
         .\systemwidedeploy.cmd 1
@@ -101,6 +101,39 @@ runs:
                 -D INSTALL_GTEST=ON `
                 ${{ inputs.additional-cmake-flags }} ..
           echo "Configuration completed successfully for Windows"
+      shell: pwsh
+
+    - name: Configure OCCT (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+          mkdir build
+          cd build
+          cmake -T ${{ inputs.compiler == 'msvc' && 'host=arm64' || 'ClangCL' }} `
+                -D USE_FREETYPE=ON `
+                -D USE_TK=ON `
+                -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
+                -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
+                -D BUILD_INCLUDE_SYMLINK=ON `
+                -D CMAKE_BUILD_TYPE=${{ inputs.cmake-build-type }} `
+                -D INSTALL_DIR=${{ github.workspace }}/install `
+                -D BUILD_USE_VCPKG=ON `
+                -D CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
+                -D VCPKG_TARGET_TRIPLET=arm64-windows `
+                -D USE_D3D=ON `
+                -D USE_DRACO=ON `
+                -D USE_FFMPEG=ON `
+                -D USE_FREEIMAGE=ON `
+                -D USE_GLES2=ON `
+                -D USE_OPENVR=ON `
+                -D USE_VTK=${{ inputs.use-vtk }} `
+                -D USE_TBB=ON `
+                -D USE_RAPIDJSON=ON `
+                -D USE_OPENGL=ON `
+                -D BUILD_GTEST=ON `
+                -D BUILD_CPP_STANDARD=C++17 `
+                -D INSTALL_GTEST=ON `
+                ${{ inputs.additional-cmake-flags }} ..
+          echo "Configuration completed successfully for Windows-arm64"
       shell: pwsh
 
     - name: Configure OCCT (macOS)

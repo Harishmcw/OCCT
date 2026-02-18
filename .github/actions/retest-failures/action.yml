@@ -22,14 +22,14 @@ runs:
   using: "composite"
   steps:
     - name: Download previous test results (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       uses: actions/download-artifact@v4.3.0
       with:
         name: ${{ inputs.results-artifact-name }}
         path: install/results
       
     - name: Download previous test results (macOS/Linux)
-      if: ${{ inputs.platform != 'windows' }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' }}
       uses: actions/download-artifact@v4.3.0
       with:
         name: ${{ inputs.results-artifact-name }}
@@ -37,7 +37,7 @@ runs:
 
     - name: Check for test failures (Windows)
       id: check_failures_windows
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       shell: pwsh
       run: |
         $failedCount = 0
@@ -57,7 +57,7 @@ runs:
 
     - name: Check for test failures (macOS/Linux)
       id: check_failures_unix
-      if: ${{ inputs.platform != 'windows' }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' }}
       shell: bash
       run: |
         failed_count=0
@@ -76,7 +76,7 @@ runs:
 
     - name: Set failed count
       id: check_failures
-      shell: ${{ inputs.platform == 'windows' && 'pwsh' || 'bash' }}
+      shell: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && 'pwsh' || 'bash' }}
       run: |
         ${{ inputs.platform == 'windows' && format('
         echo "failed_count={0}" >> $env:GITHUB_OUTPUT
@@ -100,7 +100,7 @@ runs:
       uses: ./.github/actions/setup-xvfb-mesa
 
     - name: Download test data (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: pwsh
       run: |
         cd data
@@ -124,14 +124,14 @@ runs:
         path: install
 
     - name: Download and extract Mesa3D (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: pwsh
       run: |
         curl -L -o mesa3d.7z https://github.com/pal1000/mesa-dist-win/releases/download/24.3.2/mesa3d-24.3.2-release-mingw.7z
         7z x mesa3d.7z -omesa3d
 
     - name: Run system-wide deployment (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: cmd
       run: |
         cd mesa3d
@@ -139,7 +139,7 @@ runs:
         .\systemwidedeploy.cmd 5
 
     - name: Install CJK Fonts (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: pwsh
       run: |
         Invoke-WebRequest -Uri https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/01_NotoSansCJK-OTF-VF.zip -OutFile NotoSansCJK.zip
@@ -153,7 +153,7 @@ runs:
       run: chmod +x install/${{ inputs.platform == 'macos' && 'bin' || 'bin' }}/DRAWEXE
 
     - name: Run regression tests (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: cmd
       run: |
         cd install
@@ -179,7 +179,7 @@ runs:
         CSF_TestDataPath: ${{ github.workspace }}/data
 
     - name: Repeating failed tests (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 && steps.check_failures.outputs.failed_count < 20 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 && steps.check_failures.outputs.failed_count < 20 }}
       shell: cmd
       run: |
         cd install
@@ -195,7 +195,7 @@ runs:
         CSF_TestDataPath: ${{ github.workspace }}/data
 
     - name: Repeating failed tests (macOS/Linux)
-      if: ${{ inputs.platform != 'windows' && steps.check_failures.outputs.failed_count > 0 && steps.check_failures.outputs.failed_count < 20 }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' && steps.check_failures.outputs.failed_count > 0 && steps.check_failures.outputs.failed_count < 20 }}
       shell: bash
       run: |
         cd install
@@ -213,7 +213,7 @@ runs:
         CSF_TestDataPath: ${{ github.workspace }}/data
 
     - name: Upload regression test results (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       uses: actions/upload-artifact@v4.4.3
       with:
         name: ${{ inputs.results-artifact-name }}-retest
@@ -222,7 +222,7 @@ runs:
         overwrite: true
         
     - name: Upload regression test results (macOS/Linux)
-      if: ${{ inputs.platform != 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' && steps.check_failures.outputs.failed_count > 0 }}
       uses: actions/upload-artifact@v4.4.3
       with:
         name: ${{ inputs.results-artifact-name }}-retest
@@ -231,7 +231,7 @@ runs:
         overwrite: true
 
     - name: Copy retest results back to original location (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: cmd
       run: |
         cd install\results\${{ inputs.test-directory-name }}-retest
@@ -245,7 +245,7 @@ runs:
         )
 
     - name: Copy retest results back to original location (macOS/Linux)
-      if: ${{ inputs.platform != 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' && steps.check_failures.outputs.failed_count > 0 }}
       shell: bash
       run: |
         cd install/bin/results/${{ inputs.test-directory-name }}-retest
@@ -260,7 +260,7 @@ runs:
         fi
 
     - name: Upload updated test results (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       uses: actions/upload-artifact@v4.4.3
       with:
         name: ${{ inputs.results-artifact-name }}
@@ -269,7 +269,7 @@ runs:
         overwrite: true
 
     - name: Upload updated test results (macOS/Linux)
-      if : ${{ inputs.platform != 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' && steps.check_failures.outputs.failed_count > 0 }}
       uses: actions/upload-artifact@v4.4.3
       with:
         name: ${{ inputs.results-artifact-name }}
@@ -278,7 +278,7 @@ runs:
         overwrite: true
 
     - name: Check test failures (Windows)
-      if: ${{ inputs.platform == 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
       shell: pwsh
       run: |
         cd install/results/${{ inputs.test-directory-name }}-retest
@@ -300,7 +300,7 @@ runs:
         }
 
     - name: Check test failures (macOS/Linux)
-      if: ${{ inputs.platform != 'windows' && steps.check_failures.outputs.failed_count > 0 }}
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' && steps.check_failures.outputs.failed_count > 0 }}
       shell: bash
       run: |
         cd install/bin/results/${{ inputs.test-directory-name }}-retest

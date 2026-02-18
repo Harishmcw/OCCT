@@ -62,7 +62,7 @@ runs:
         include-debug: ${{ inputs.cmake-build-type == 'Debug' && 'true' || 'false' }}
 
     - name: Build OCCT (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
           cd build
           cmake --build . --target install --config Release
