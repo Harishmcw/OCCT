@@ -47,6 +47,39 @@ runs:
         7z x mesa3d-arm64.7z -omesa3d
       shell: pwsh
 
+    - name: Build Tcl/Tk/Thread (Windows ARM64)
+      shell: cmd
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" arm64
+
+        rem ===== Tcl 8.6.15 =====
+        git clone https://github.com/tcltk/tcl.git
+        cd tcl
+        git checkout core-8-6-15
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcl
+        nmake -f makefile.vc install-binaries install-libraries
+        cd ..\..
+
+        rem ===== Tk 8.6.15 =====
+        git clone https://github.com/tcltk/tk.git
+        cd tk
+        git checkout core-8-6-15
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
+        nmake -f makefile.vc install-binaries install-libraries
+        cd ..\..
+
+        rem ===== Thread 2.8.10 =====
+        git clone https://github.com/tcltk/thread.git
+        cd thread
+        git checkout thread-2-8-10
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
+        nmake -f makefile.vc install INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
+
+        echo Done building Tcl, Tk, and Thread for Windows ARM64
+
     - name: Download and extract Mesa3D (Windows)
       if: ${{ inputs.platform == 'windows' }}
       run: |
@@ -115,7 +148,8 @@ runs:
       run: |
           mkdir build
           cd build
-          cmake -T ${{ inputs.compiler == 'msvc' && 'host=arm64' || 'ClangCL' }} `
+          cmake -G "Visual Studio 17 2022" `
+                -A ARM64 `
                 -D USE_FREETYPE=ON `
                 -D USE_TK=ON `
                 -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
