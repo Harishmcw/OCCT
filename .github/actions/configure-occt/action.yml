@@ -67,8 +67,9 @@ runs:
         cd tk
         git checkout core-8-6-15
         cd win
-        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
-        nmake -f makefile.vc install-binaries install-libraries
+        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcl TCLDIR=%GITHUB_WORKSPACE%\tcl
+
         cd ..\..
 
         rem ===== Thread 2.8.10 =====
