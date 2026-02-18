@@ -90,7 +90,7 @@ runs:
       shell: cmd
 
     - name: Add NuGet sources
-      if: runner.os == 'Windows'
+      if: runner.os == 'Windows' && inputs.platform != 'windows-arm64'
       run: |
         .$(${{ env.VCPKG_EXE }} fetch nuget) `
           sources add `
@@ -118,3 +118,11 @@ runs:
           setapikey "${{ inputs.github-token }}" \
           -Source "${{ env.FEED_URL }}"
       shell: bash
+
+    - name: Cache vcpkg downloads (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/cache@v4
+      with:
+        path: |
+          ${{ github.workspace }}/vcpkg/downloads
+        key: vcpkg-downloads-${{ inputs.vcpkg-tag }}
