@@ -58,7 +58,7 @@ runs:
         cd tcl
         git checkout core-8-6-15
         cd win
-        nmake -f makefile.vc INSTALLDIR=C:\Tcl
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk
         nmake -f makefile.vc install-binaries install-libraries
         cd ..\..
 
@@ -67,8 +67,8 @@ runs:
         cd tk
         git checkout core-8-6-15
         cd win
-        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=%GITHUB_WORKSPACE%\tcl
-        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcl TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
 
         cd ..\..
 
@@ -77,8 +77,10 @@ runs:
         cd thread
         git checkout thread-2-8-10
         cd win
-        nmake -f makefile.vc INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
-        nmake -f makefile.vc install INSTALLDIR=C:\Tcl TCLDIR=C:\Tcl
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc install INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+
+        echo C:\Tcl\bin>> %GITHUB_PATH%
 
         echo Done building Tcl, Tk, and Thread for Windows ARM64
 
@@ -162,7 +164,6 @@ runs:
                 -D USE_FREETYPE=ON `
                 -D USE_TK=ON `
                 -D 3RDPARTY_TK_DIR="C:/Tcl" `
-                -D 3RDPARTY_TCL_INCLUDE_DIR="C:/Tcl/include" `
                 -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
                 -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
                 -D BUILD_INCLUDE_SYMLINK=ON `
