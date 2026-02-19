@@ -37,6 +37,7 @@ runs:
   steps:
     - name: Setup vcpkg
       uses: ./.github/actions/vcpkg-setup
+      platform: ${{ inputs.platform }}
       with:
         github-token: ${{ inputs.github-token }}
 
@@ -77,10 +78,10 @@ runs:
         cd thread
         git checkout thread-2-8-10
         cd win
-        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
-        nmake -f makefile.vc install INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
+        nmake -f makefile.vc install INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
 
-        echo C:\Tcl\bin>> %GITHUB_PATH%
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
 
         echo Done building Tcl, Tk, and Thread for Windows ARM64
 
@@ -89,7 +90,7 @@ runs:
       uses: actions/upload-artifact@v4
       with:
         name: tcl-tk-thread-windows-arm64
-        path: C:\Tcl
+        path: C:\Tcltk
 
     - name: Download and extract Mesa3D (Windows)
       if: ${{ inputs.platform == 'windows' }}
@@ -163,7 +164,7 @@ runs:
                 -A ARM64 `
                 -D USE_FREETYPE=ON `
                 -D USE_TK=ON `
-                -D 3RDPARTY_TK_DIR="C:/Tcl" `
+                -D 3RDPARTY_TK_DIR="C:/Tcltk" `
                 -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
                 -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
                 -D BUILD_INCLUDE_SYMLINK=ON `

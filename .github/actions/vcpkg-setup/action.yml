@@ -9,6 +9,10 @@ inputs:
   github-token:
     description: 'GitHub token for NuGet package access'
     required: true
+  platform:
+      description: 'Platform (windows, windows-arm64, macos, linux)'
+      required: false
+      default: ''
 
 runs:
   using: "composite"
@@ -79,6 +83,21 @@ runs:
         git checkout ${{ inputs.vcpkg-tag }}
         ./bootstrap-vcpkg.sh
       shell: bash
+
+    - name: Override binary source for windows-arm64 (no NuGet auth)
+      if: inputs.platform == 'windows-arm64'
+      run: |
+        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}/vcpkg-cache,readwrite" >> $env:GITHUB_ENV
+      shell: pwsh
+
+    - name: Cache vcpkg binary cache (windows-arm64)
+      if: inputs.platform == 'windows-arm64'
+      uses: actions/cache@v4
+      with:
+          path: ${{ github.workspace }}/vcpkg-cache
+          key: vcpkg-binary-windows-arm64-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+          restore-keys: |
+            vcpkg-binary-windows-arm64-
 
     - name: Set up vcpkg (Windows)
       if: runner.os == 'Windows'
