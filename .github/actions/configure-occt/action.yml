@@ -60,7 +60,7 @@ runs:
         git checkout core-8-6-15
         cd win
         nmake -f makefile.vc INSTALLDIR=C:\Tcltk
-        nmake -f makefile.vc install-binaries install-libraries
+        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcltk
         cd ..\..
 
         rem ===== Tk 8.6.15 =====
