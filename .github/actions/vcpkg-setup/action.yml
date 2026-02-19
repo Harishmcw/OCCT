@@ -10,14 +10,15 @@ inputs:
     description: 'GitHub token for NuGet package access'
     required: true
   platform:
-      description: 'Platform (windows, windows-arm64, macos, linux)'
-      required: false
-      default: ''
+    description: 'Platform (windows, windows-arm64, macos, linux)'
+    required: false
+    default: ''
 
 runs:
   using: "composite"
   steps:
     - name: Set environment variables
+      if: runner.os != 'Windows'
       run: |
         echo "USERNAME=Open-Cascade-SAS" >> $GITHUB_ENV
         echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $GITHUB_ENV
@@ -28,9 +29,9 @@ runs:
         echo "VCPKG_DISABLE_COMPILER_TRACKING=1" >> $GITHUB_ENV
         echo "VCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions;--clean-after-build" >> $GITHUB_ENV
       shell: bash
-      if: runner.os != 'Windows'
 
     - name: Set environment variables (Windows)
+      if: runner.os == 'Windows'
       run: |
         echo "USERNAME=Open-Cascade-SAS" >> $env:GITHUB_ENV
         echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $env:GITHUB_ENV
@@ -41,7 +42,30 @@ runs:
         echo "VCPKG_DISABLE_COMPILER_TRACKING=1" >> $env:GITHUB_ENV
         echo "VCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions;--clean-after-build" >> $env:GITHUB_ENV
       shell: pwsh
-      if: runner.os == 'Windows'
+
+    - name: Override binary source for windows-arm64 (no NuGet auth)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}/vcpkg-cache,readwrite" >> $env:GITHUB_ENV
+      shell: pwsh
+
+    - name: Cache vcpkg binary cache (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-binary-windows-arm64-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+        restore-keys: |
+          vcpkg-binary-windows-arm64-
+
+    - name: Cache vcpkg downloads (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg/downloads
+        key: vcpkg-downloads-windows-arm64-${{ inputs.vcpkg-tag }}
+        restore-keys: |
+          vcpkg-downloads-windows-arm64-
 
     - name: Install required packages (Linux)
       if: runner.os == 'Linux'
@@ -57,12 +81,10 @@ runs:
               libgles2-mesa-dev
       shell: bash
 
-
     - name: Install required packages (macOS)
       if: runner.os == 'macOS'
       run: |
         brew update || true
-        # Install each package separately to continue even if some fail
         brew install cmake || true
         brew install ninja || true
         brew install nasm || true
@@ -84,21 +106,6 @@ runs:
         ./bootstrap-vcpkg.sh
       shell: bash
 
-    - name: Override binary source for windows-arm64 (no NuGet auth)
-      if: inputs.platform == 'windows-arm64'
-      run: |
-        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}/vcpkg-cache,readwrite" >> $env:GITHUB_ENV
-      shell: pwsh
-
-    - name: Cache vcpkg binary cache (windows-arm64)
-      if: inputs.platform == 'windows-arm64'
-      uses: actions/cache@v4
-      with:
-          path: ${{ github.workspace }}/vcpkg-cache
-          key: vcpkg-binary-windows-arm64-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
-          restore-keys: |
-            vcpkg-binary-windows-arm64-
-
     - name: Set up vcpkg (Windows)
       if: runner.os == 'Windows'
       run: |
@@ -108,8 +115,8 @@ runs:
         .\bootstrap-vcpkg.bat
       shell: cmd
 
-    - name: Add NuGet sources
-      if: runner.os == 'Windows' && inputs.platform != 'windows-arm64'
+    - name: Add NuGet sources (Windows)
+      if: ${{ runner.os == 'Windows' && inputs.platform != 'windows-arm64' }}
       run: |
         .$(${{ env.VCPKG_EXE }} fetch nuget) `
           sources add `
@@ -123,7 +130,7 @@ runs:
           -Source "${{ env.FEED_URL }}"
       shell: pwsh
 
-    - name: Add NuGet sources
+    - name: Add NuGet sources (Unix)
       if: runner.os != 'Windows'
       run: |
         mono `${{ env.VCPKG_EXE }} fetch nuget | tail -n 1` \
@@ -137,11 +144,3 @@ runs:
           setapikey "${{ inputs.github-token }}" \
           -Source "${{ env.FEED_URL }}"
       shell: bash
-
-    - name: Cache vcpkg downloads (Windows ARM64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
-      with:
-        path: |
-          ${{ github.workspace }}/vcpkg/downloads
-        key: vcpkg-downloads-${{ inputs.vcpkg-tag }}
