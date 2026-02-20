@@ -35,7 +35,7 @@ runs:
       run: |
         echo "USERNAME=Open-Cascade-SAS" >> $env:GITHUB_ENV
         echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $env:GITHUB_ENV
-        echo "VCPKG_EXE=${{ github.workspace }}/vcpkg/vcpkg" >> $env:GITHUB_ENV
+        echo "VCPKG_EXE=${{ github.workspace }}/vcpkg/vcpkg.exe" >> $env:GITHUB_ENV
         echo "FEED_URL=https://nuget.pkg.github.com/Open-Cascade-SAS/index.json" >> $env:GITHUB_ENV
         echo "VCPKG_BINARY_SOURCES=clear;nuget,https://nuget.pkg.github.com/Open-Cascade-SAS/index.json,readwrite" >> $env:GITHUB_ENV
         echo "VCPKG_FEATURE_FLAGS=binarycaching,manifests,versions" >> $env:GITHUB_ENV
@@ -43,29 +43,33 @@ runs:
         echo "VCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions;--clean-after-build" >> $env:GITHUB_ENV
       shell: pwsh
 
+    # Must override BEFORE any caching steps so cache paths are consistent
     - name: Override binary source for windows-arm64 (no NuGet auth)
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
         echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}/vcpkg-cache,readwrite" >> $env:GITHUB_ENV
+        echo "VCPKG_DOWNLOADS=${{ github.workspace }}/vcpkg/downloads" >> $env:GITHUB_ENV
       shell: pwsh
 
+    # Cache the vcpkg tool itself (clone + bootstrap) to avoid re-cloning every run
+    - name: Cache vcpkg tool (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/cache@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg
+        key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
+        # No restore-keys here — tool version must match exactly
+
+    # Cache the binary packages built by vcpkg
     - name: Cache vcpkg binary cache (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
       uses: actions/cache@v4
       with:
         path: ${{ github.workspace }}/vcpkg-cache
-        key: vcpkg-binary-windows-arm64-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+        key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
         restore-keys: |
+          vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
           vcpkg-binary-windows-arm64-
-
-    - name: Cache vcpkg downloads (windows-arm64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
-      with:
-        path: ${{ github.workspace }}/vcpkg/downloads
-        key: vcpkg-downloads-windows-arm64-${{ inputs.vcpkg-tag }}
-        restore-keys: |
-          vcpkg-downloads-windows-arm64-
 
     - name: Install required packages (Linux)
       if: runner.os == 'Linux'
@@ -100,20 +104,29 @@ runs:
     - name: Set up vcpkg (Unix)
       if: runner.os != 'Windows'
       run: |
-        git clone https://github.com/microsoft/vcpkg.git
-        cd vcpkg
-        git checkout ${{ inputs.vcpkg-tag }}
-        ./bootstrap-vcpkg.sh
+        if [ ! -d "vcpkg/.git" ]; then
+          git clone https://github.com/microsoft/vcpkg.git
+          cd vcpkg
+          git checkout ${{ inputs.vcpkg-tag }}
+          ./bootstrap-vcpkg.sh
+        else
+          echo "vcpkg already cached, skipping clone and bootstrap."
+        fi
       shell: bash
 
+    # For windows-arm64: conditionally clone+bootstrap only if not restored from cache
     - name: Set up vcpkg (Windows)
       if: runner.os == 'Windows'
       run: |
-        git clone https://github.com/microsoft/vcpkg.git
-        cd vcpkg
-        git checkout ${{ inputs.vcpkg-tag }}
-        .\bootstrap-vcpkg.bat
-      shell: cmd
+        if (!(Test-Path "${{ github.workspace }}/vcpkg/.git")) {
+          git clone https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
+          cd "${{ github.workspace }}/vcpkg"
+          git checkout ${{ inputs.vcpkg-tag }}
+          .\bootstrap-vcpkg.bat
+        } else {
+          Write-Host "vcpkg already cached, skipping clone and bootstrap."
+        }
+      shell: pwsh
 
     - name: Add NuGet sources (Windows)
       if: ${{ runner.os == 'Windows' && inputs.platform != 'windows-arm64' }}
@@ -144,3 +157,21 @@ runs:
           setapikey "${{ inputs.github-token }}" \
           -Source "${{ env.FEED_URL }}"
       shell: bash
+
+    # Debug step — remove once caching is confirmed working
+    - name: Debug vcpkg cache contents (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        Write-Host "=== vcpkg-cache contents ==="
+        if (Test-Path "${{ github.workspace }}/vcpkg-cache") {
+          Get-ChildItem -Recurse "${{ github.workspace }}/vcpkg-cache" | Select-Object FullName, Length
+        } else {
+          Write-Host "vcpkg-cache directory does not exist yet."
+        }
+        Write-Host "=== vcpkg/downloads contents ==="
+        if (Test-Path "${{ github.workspace }}/vcpkg/downloads") {
+          Get-ChildItem "${{ github.workspace }}/vcpkg/downloads" | Select-Object Name
+        } else {
+          Write-Host "downloads directory does not exist yet."
+        }
+      shell: pwsh
