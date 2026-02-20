@@ -3,7 +3,7 @@ description: 'Execute GTest suite and validate results'
 
 inputs:
   platform:
-    description: 'Platform (windows, macos, linux)'
+    description: 'Platform (windows, windows-arm64, macos, linux)'
     required: true
   compiler:
     description: 'Compiler (msvc, clang, gcc)'

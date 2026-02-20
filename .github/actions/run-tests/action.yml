@@ -35,6 +35,19 @@ runs:
       if: ${{ inputs.platform == 'linux' }}
       uses: ./.github/actions/setup-xvfb-mesa
 
+    - name: Download Tcl/Tk binaries (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+
+    - name: Add Tcltk to Path (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      shell: cmd
+      run: |
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
+
     - name: Download and extract test data (Windows)
       if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
