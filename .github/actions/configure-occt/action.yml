@@ -184,7 +184,7 @@ runs:
                 -D USE_FFMPEG=ON `
                 -D USE_FREEIMAGE=ON `
                 -D USE_GLES2=ON `
-                -D USE_OPENVR=ON `
+                -D USE_OPENVR=OFF `
                 -D USE_VTK=${{ inputs.use-vtk }} `
                 -D USE_TBB=ON `
                 -D USE_RAPIDJSON=ON `
