@@ -41,15 +41,16 @@ runs:
         github-token: ${{ inputs.github-token }}
         platform: ${{ inputs.platform }}
 
-    - name: Download and extract Mesa3D (Windows-arm64)
+    - name: Restore Tcl/Tk/Thread cache (Windows ARM64)
       if: ${{ inputs.platform == 'windows-arm64' }}
-      run: |
-        curl -L -o mesa3d-arm64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-arm64-24.3.2.zip
-        7z x mesa3d-arm64.7z -omesa3d
-      shell: pwsh
+      id: cache-tcltk
+      uses: actions/cache/restore@v4
+      with:
+        path: C:\Tcltk
+        key: tcl-tk-thread-windows-arm64
 
     - name: Build Tcl/Tk/Thread (Windows ARM64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
+      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-tcltk.outputs.cache-hit != 'true' }}
       shell: cmd
       run: |
         call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" arm64
@@ -70,7 +71,6 @@ runs:
         cd win
         nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
         nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
-
         cd ..\..
 
         rem ===== Thread 2.8.10 =====
@@ -81,9 +81,19 @@ runs:
         nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
         nmake -f makefile.vc install INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
 
-        echo C:\Tcltk\bin>> %GITHUB_PATH%
-
         echo Done building Tcl, Tk, and Thread for Windows ARM64
+
+    - name: Save Tcl/Tk/Thread cache (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-tcltk.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v4
+      with:
+        path: C:\Tcltk
+        key: tcl-tk-thread-windows-arm64
+
+    - name: Add Tcl/Tk to PATH (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: echo "C:\Tcltk\bin" >> $env:GITHUB_PATH
+      shell: pwsh
 
     - name: Upload Tcl/Tk/Thread artifact (Windows ARM64)
       if: ${{ inputs.platform == 'windows-arm64' }}

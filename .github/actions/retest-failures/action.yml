@@ -3,7 +3,7 @@ description: 'Rerun failed tests and update test results'
 
 inputs:
   platform:
-    description: 'Platform (windows, macos, linux)'
+    description: 'Platform (windows, windows-arm64, macos, linux)'
     required: true
   compiler:
     description: 'Compiler (msvc, clang, gcc)'
@@ -90,6 +90,19 @@ runs:
       with:
         artifact-name: ${{ inputs.install-artifact-name }}-cache
 
+    - name: Download Tcl/Tk binaries (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+
+    - name: Add Tcltk to Path (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      shell: cmd
+      run: |
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
+
     - name: Install dependencies (Linux)
       if: ${{ inputs.platform == 'linux' && steps.check_failures.outputs.failed_count > 0 }}
       shell: bash
@@ -122,6 +135,13 @@ runs:
       with:
         name: ${{ inputs.install-artifact-name }}
         path: install
+
+    - name: Download and extract Mesa3D (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        curl -L -o mesa3d-arm64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-arm64-24.3.2.zip
+        7z x mesa3d-arm64.7z -oinstall\win64\vc14\bin -y
+      shell: pwsh
 
     - name: Download and extract Mesa3D (Windows)
       if: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && steps.check_failures.outputs.failed_count > 0 }}
