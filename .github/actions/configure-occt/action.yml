@@ -176,8 +176,11 @@ runs:
                 -D USE_FREETYPE=ON `
                 -D USE_TK=ON `
                 -D 3RDPARTY_TK_DIR="C:/Tcltk" `
+                -D 3RDPARTY_TCL_DIR="C:/Tcltk" `
                 -D 3RDPARTY_TCL_INCLUDE_DIR="C:/Tcltk/include" `
                 -D 3RDPARTY_TCL_LIBRARY="C:/Tcltk/lib/tcl86t.lib" `
+                -D 3RDPARTY_TK_DIR="C:/Tcltk" `
+                -D 3RDPARTY_TK_INCLUDE_DIR="C:/Tcltk/include" `
                 -D 3RDPARTY_TK_LIBRARY="C:/Tcltk/lib/tk86t.lib" `
                 -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
                 -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
