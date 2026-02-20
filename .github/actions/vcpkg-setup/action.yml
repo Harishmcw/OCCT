@@ -58,6 +58,7 @@ runs:
       with:
         path: ${{ github.workspace }}/vcpkg
         key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
+        save-always: true
         # No restore-keys here — tool version must match exactly
 
     # Cache the binary packages built by vcpkg
@@ -70,6 +71,7 @@ runs:
         restore-keys: |
           vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
           vcpkg-binary-windows-arm64-
+        save-always: true
 
     - name: Install required packages (Linux)
       if: runner.os == 'Linux'
