@@ -78,7 +78,7 @@ runs:
       id: check_failures
       shell: ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && 'pwsh' || 'bash' }}
       run: |
-        ${{ inputs.platform == 'windows' && format('
+        ${{ (inputs.platform == 'windows' || inputs.platform == 'windows-arm64') && format('
         echo "failed_count={0}" >> $env:GITHUB_OUTPUT
         ', steps.check_failures_windows.outputs.failed_count) || format('
         echo "failed_count={0}" >> $GITHUB_OUTPUT
