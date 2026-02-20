@@ -51,27 +51,26 @@ runs:
         echo "VCPKG_DOWNLOADS=${{ github.workspace }}/vcpkg/downloads" >> $env:GITHUB_ENV
       shell: pwsh
 
-    # Cache the vcpkg tool itself (clone + bootstrap) to avoid re-cloning every run
-    - name: Cache vcpkg tool (windows-arm64)
+    # RESTORE vcpkg tool
+    - name: Restore vcpkg tool (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
+      id: cache-vcpkg-tool
+      uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/vcpkg
         key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
-        save-always: true
-        # No restore-keys here — tool version must match exactly
 
-    # Cache the binary packages built by vcpkg
-    - name: Cache vcpkg binary cache (windows-arm64)
+    # RESTORE vcpkg binary cache
+    - name: Restore vcpkg binary cache (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
+      id: cache-vcpkg-binary
+      uses: actions/cache/restore@v4
       with:
         path: ${{ github.workspace }}/vcpkg-cache
         key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
         restore-keys: |
           vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
           vcpkg-binary-windows-arm64-
-        save-always: true
 
     - name: Install required packages (Linux)
       if: runner.os == 'Linux'
@@ -116,7 +115,6 @@ runs:
         fi
       shell: bash
 
-    # For windows-arm64: conditionally clone+bootstrap only if not restored from cache
     - name: Set up vcpkg (Windows)
       if: runner.os == 'Windows'
       run: |
@@ -133,15 +131,14 @@ runs:
     - name: Add NuGet sources (Windows)
       if: ${{ runner.os == 'Windows' && inputs.platform != 'windows-arm64' }}
       run: |
-        .$(${{ env.VCPKG_EXE }} fetch nuget) `
-          sources add `
+        $nuget = & "${{ env.VCPKG_EXE }}" fetch nuget | Select-Object -Last 1
+        & $nuget sources add `
           -Source "${{ env.FEED_URL }}" `
           -StorePasswordInClearText `
           -Name GitHubPackages `
           -UserName "${{ env.USERNAME }}" `
           -Password "${{ inputs.github-token }}"
-        .$(${{ env.VCPKG_EXE }} fetch nuget) `
-          setapikey "${{ inputs.github-token }}" `
+        & $nuget setapikey "${{ inputs.github-token }}" `
           -Source "${{ env.FEED_URL }}"
       shell: pwsh
 
@@ -177,3 +174,19 @@ runs:
           Write-Host "downloads directory does not exist yet."
         }
       shell: pwsh
+
+    # SAVE vcpkg tool — only if it wasn't restored from cache
+    - name: Save vcpkg tool (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-vcpkg-tool.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg
+        key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
+
+    # SAVE vcpkg binary cache — always, so partial builds are preserved on failure
+    - name: Save vcpkg binary cache (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/vcpkg-cache
+        key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
