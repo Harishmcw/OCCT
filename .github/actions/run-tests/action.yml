@@ -3,7 +3,7 @@ description: 'Run OCCT tests on a specific platform'
 
 inputs:
   platform:
-    description: 'Platform (windows, macos, linux)'
+    description: 'Platform (windows, windows-arm64, macos, linux)'
     required: true
   compiler:
     description: 'Compiler (msvc, clang, gcc)'
@@ -35,8 +35,21 @@ runs:
       if: ${{ inputs.platform == 'linux' }}
       uses: ./.github/actions/setup-xvfb-mesa
 
+    - name: Download Tcl/Tk binaries (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+
+    - name: Add Tcltk to Path (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      shell: cmd
+      run: |
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
+
     - name: Download and extract test data (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         cd data
         Invoke-WebRequest -Uri https://github.com/Open-Cascade-SAS/OCCT/releases/download/V7_9_0_beta1/opencascade-dataset-7.9.0.zip -OutFile opencascade-dataset-7.9.0.zip
@@ -58,6 +71,13 @@ runs:
         name: ${{ inputs.install-artifact-name }}
         path: install
 
+    - name: Download and extract Mesa3D (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        curl -L -o mesa3d-arm64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-arm64-24.3.2.zip
+        7z x mesa3d-arm64.7z -oinstall\win64\vc14\bin -y
+      shell: pwsh
+
     - name: Download and extract Mesa3D (Windows)
       if: ${{ inputs.platform == 'windows' }}
       run: |
@@ -74,7 +94,7 @@ runs:
       shell: cmd
 
     - name: Install CJK Fonts (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         Invoke-WebRequest -Uri https://github.com/notofonts/noto-cjk/releases/download/Sans2.004/01_NotoSansCJK-OTF-VF.zip -OutFile NotoSansCJK.zip
         Expand-Archive -Path NotoSansCJK.zip -DestinationPath NotoSansCJK
@@ -93,7 +113,7 @@ runs:
       shell: bash
 
     - name: Run tests (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         cd install
         call env.bat vc14 win64 release
@@ -119,7 +139,7 @@ runs:
         CSF_TestDataPath: ${{ github.workspace }}/data
 
     - name: Clean up test results (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       run: |
         cd install
         call env.bat vc14 win64 release
@@ -145,7 +165,7 @@ runs:
         CSF_TestDataPath: ${{ github.workspace }}/data
 
     - name: Upload test results (Windows)
-      if: ${{ inputs.platform == 'windows' }}
+      if: ${{ inputs.platform == 'windows' || inputs.platform == 'windows-arm64' }}
       uses: actions/upload-artifact@v4.6.2
       with:
         name: results-${{ inputs.test-directory-name }}
