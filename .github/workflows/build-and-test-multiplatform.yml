@@ -171,7 +171,7 @@ jobs:
       with:
         platform: 'windows-arm64'
         compiler: 'msvc'
-        install-artifact-name: 'occt-install-windows-arm64-msvc'
+        install-artifact-name: install-windows-arm64
 
   test-windows-x64:
     name: Test on Windows (x64)
