@@ -1,0 +1,103 @@
+name: 'Run DE Wrapper Test'
+description: 'Run specific DE_Wrapper configuration test on WOA'
+ 
+inputs:
+  platform:
+    description: 'Platform (windows, macos, linux)'
+    required: true
+  compiler:
+    description: 'Compiler (msvc, clang, gcc)'
+    required: true
+  install-artifact-name:
+    description: 'Name of the artifact containing the install directory'
+    required: true
+ 
+runs:
+  using: "composite"
+  steps:
+    - name: Download vcpkg cache
+      uses: ./.github/actions/download-vcpkg-cache
+      with:
+        artifact-name: ${{ inputs.install-artifact-name }}-cache
+ 
+    - name: Download Tcl/Tk binaries (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+ 
+    - name: Add Tcltk to Path (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      shell: cmd
+      run: |
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
+ 
+    - name: Download and extract install directory
+      uses: ./.github/actions/download-artifacts
+      with:
+        name: ${{ inputs.install-artifact-name }}
+        path: install
+ 
+    - name: Download and extract Mesa3D (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        curl -L -o mesa3d-arm64.7z https://github.com/mmozeiko/build-mesa/releases/download/24.3.2/mesa-llvmpipe-arm64-24.3.2.zip
+        7z x mesa3d-arm64.7z -oinstall\win64\vc14\bin -y
+      shell: pwsh
+ 
+    # DIAGNOSTIC: Print environment info
+    - name: Print diagnostic info
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        echo "=== Environment Diagnostics ==="
+        echo "Tcl version:"
+        tclsh version.tcl 2>nul || echo "Tcl not found in PATH"
+        echo "Current locale:"
+        powershell -Command "[System.Globalization.CultureInfo]::CurrentCulture"
+        echo "CSF Variables:"
+        set | findstr CSF
+        echo "PATH:"
+        echo %PATH%
+      shell: cmd
+ 
+    # RUN ONLY THE FAILING TEST
+    - name: Run DE Wrapper Test with Debug Output
+      run: |
+        cd install
+        call env.bat vc14 win64 release
+        echo testgrid de_wrapper configuration A1 > run_test.tcl
+        echo puts "=== Checking Tcl Interpreter ===" >> run_test.tcl
+        echo puts [info patchlevel] >> run_test.tcl
+        echo puts "=== CSF Variables ===" >> run_test.tcl
+        echo puts $::env(CSF_TestScriptsPath) >> run_test.tcl
+        DRAWEXE.exe -v -f run_test.tcl
+      shell: cmd
+      env:
+        LIBGL_ALWAYS_SOFTWARE: 1
+        CSF_TestScriptsPath: ${{ github.workspace }}/tests
+        CSF_TestDataPath: ${{ github.workspace }}/data
+        CSF_LANGUAGE: us
+        LC_NUMERIC: C
+ 
+    - name: Clean up test results (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        cd install
+        call env.bat vc14 win64 release
+        DRAWEXE.exe -v -c cleanuptest results/de_wrapper_debug
+      shell: cmd
+      env:
+        CSF_TestScriptsPath: ${{ github.workspace }}/tests
+        CSF_TestDataPath: ${{ github.workspace }}/data
+ 
+    - name: Upload test results (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/upload-artifact@v4.6.2
+      with:
+        name: results-de-wrapper-config-test
+        path: |
+          install/results/**/*.log
+          install/results/**/*.png
+          install/results/**/*.html
+        retention-days: 15
