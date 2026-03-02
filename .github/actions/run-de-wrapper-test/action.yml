@@ -52,13 +52,19 @@ runs:
       run: |
         echo "=== Environment Diagnostics ==="
         echo "Tcl version:"
-        tclsh version.tcl 2>nul || echo "Tcl not found in PATH"
+        where tclsh 2>nul
+        if %ERRORLEVEL% EQU 0 (
+          echo puts [info patchlevel] | tclsh
+        ) else (
+          echo Tcl not found in PATH
+        )
         echo "Current locale:"
         powershell -Command "[System.Globalization.CultureInfo]::CurrentCulture"
         echo "CSF Variables:"
-        set | findstr CSF
+        set | findstr CSF 2>nul
         echo "PATH:"
         echo %PATH%
+        exit 0
       shell: cmd
  
     # RUN ONLY THE FAILING TEST
