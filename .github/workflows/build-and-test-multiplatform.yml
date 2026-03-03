@@ -91,7 +91,7 @@ jobs:
 
   prepare-and-build-windows-arm64:
     name: Prepare and Build on Windows with MSVC (arm64)
-    runs-on: windows-11-arm
+    runs-on: self-hosted
 
     steps:
     - name: Checkout repository
@@ -193,7 +193,7 @@ jobs:
 
   test-windows-arm64:
     name: Test on Windows (arm64)
-    runs-on: windows-11-arm
+    runs-on: self-hosted
     needs: prepare-and-build-windows-arm64
 
     steps:
@@ -229,7 +229,7 @@ jobs:
 
   retest-windows-arm64:
     name: Regression Test on Windows (arm64)
-    runs-on: windows-11-arm
+    runs-on: self-hosted
     needs: test-windows-arm64
 
     steps:
@@ -337,7 +337,7 @@ jobs:
   run-gtest-windows-arm64:
     name: Run GTest on Windows with MSVC (arm64)
     needs: prepare-and-build-windows-arm64
-    runs-on: windows-11-arm
+    runs-on: self-hosted
 
     steps:
     - name: Checkout repository
