@@ -200,7 +200,6 @@ runs:
                 -D BUILD_GTEST=ON `
                 -D BUILD_CPP_STANDARD=C++17 `
                 -D INSTALL_GTEST=ON `
-                -D CMAKE_TOOLCHAIN_FILE=C:/vcpkg/scripts/buildsystems/vcpkg.cmake `
                 -D BUILD_INCLUDE_SYMLINK=OFF `
                 ${{ inputs.additional-cmake-flags }} ..
           echo "Configuration completed successfully for Windows-arm64"
