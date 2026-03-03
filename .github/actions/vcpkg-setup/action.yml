@@ -17,7 +17,8 @@ inputs:
 runs:
   using: "composite"
   steps:
-    - name: Set environment variables
+    # --- 1. ENVIRONMENT SETUP ---
+    - name: Set environment variables (Unix)
       if: runner.os != 'Windows'
       run: |
         echo "USERNAME=Open-Cascade-SAS" >> $GITHUB_ENV
@@ -34,8 +35,8 @@ runs:
       if: runner.os == 'Windows'
       run: |
         echo "USERNAME=Open-Cascade-SAS" >> $env:GITHUB_ENV
-        echo "VCPKG_ROOT=${{ github.workspace }}/vcpkg" >> $env:GITHUB_ENV
-        echo "VCPKG_EXE=${{ github.workspace }}/vcpkg/vcpkg.exe" >> $env:GITHUB_ENV
+        echo "VCPKG_ROOT=${{ github.workspace }}\vcpkg" >> $env:GITHUB_ENV
+        echo "VCPKG_EXE=${{ github.workspace }}\vcpkg\vcpkg.exe" >> $env:GITHUB_ENV
         echo "FEED_URL=https://nuget.pkg.github.com/Open-Cascade-SAS/index.json" >> $env:GITHUB_ENV
         echo "VCPKG_BINARY_SOURCES=clear;nuget,https://nuget.pkg.github.com/Open-Cascade-SAS/index.json,readwrite" >> $env:GITHUB_ENV
         echo "VCPKG_FEATURE_FLAGS=binarycaching,manifests,versions" >> $env:GITHUB_ENV
@@ -43,65 +44,58 @@ runs:
         echo "VCPKG_INSTALL_OPTIONS=--x-abi-tools-use-exact-versions;--clean-after-build" >> $env:GITHUB_ENV
       shell: pwsh
 
-    # Must override BEFORE any caching steps so cache paths are consistent
-    - name: Override binary source for windows-arm64 (no NuGet auth)
+    - name: Override binary source for windows-arm64
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
-        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}/vcpkg-cache,readwrite" >> $env:GITHUB_ENV
-        echo "VCPKG_DOWNLOADS=${{ github.workspace }}/vcpkg/downloads" >> $env:GITHUB_ENV
+        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}\vcpkg-cache,readwrite" >> $env:GITHUB_ENV
+        echo "VCPKG_DOWNLOADS=${{ github.workspace }}\vcpkg\downloads" >> $env:GITHUB_ENV
       shell: pwsh
 
-    # RESTORE vcpkg tool
-    - name: Restore vcpkg tool (windows-arm64)
+    # --- 2. CACHING (RESTORE & REGISTER POST-JOB SAVE) ---
+    - name: Cache vcpkg tool (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
-      id: cache-vcpkg-tool
-      uses: actions/cache/restore@v4
+      uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/vcpkg
+        path: ${{ github.workspace }}\vcpkg
         key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
 
-    # RESTORE vcpkg binary cache
-    - name: Restore vcpkg binary cache (windows-arm64)
+    - name: Cache vcpkg binary cache (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
-      id: cache-vcpkg-binary
-      uses: actions/cache/restore@v4
+      uses: actions/cache@v4
       with:
-        path: ${{ github.workspace }}/vcpkg-cache
+        path: ${{ github.workspace }}\vcpkg-cache
         key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
         restore-keys: |
           vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
           vcpkg-binary-windows-arm64-
 
+    # --- 3. DIRECTORY VALIDATION (Fixes "Path(s) do not exist" warning) ---
+    - name: Ensure directories exist (windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        if (!(Test-Path "${{ github.workspace }}\vcpkg-cache")) { 
+          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\vcpkg-cache" 
+        }
+      shell: pwsh
+
+    # --- 4. PACKAGE INSTALLATION ---
     - name: Install required packages (Linux)
       if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y build-essential ninja-build curl zip unzip tar nasm autoconf mono-complete \
-              libx11-dev \
-              libxi-dev \
-              libxext-dev \
-              mesa-common-dev \
-              libglu1-mesa-dev \
-              libegl1-mesa-dev \
-              libgles2-mesa-dev
+              libx11-dev libxi-dev libxext-dev mesa-common-dev libglu1-mesa-dev libegl1-mesa-dev libgles2-mesa-dev
       shell: bash
 
     - name: Install required packages (macOS)
       if: runner.os == 'macOS'
       run: |
         brew update || true
-        brew install cmake || true
-        brew install ninja || true
-        brew install nasm || true
-        brew install autoconf || true
-        brew install automake || true
-        brew install mono || true
-        brew install openexr || true
+        brew install cmake ninja nasm autoconf automake mono openexr autoconf-archive libtool || true
         brew install --cask xquartz || true
-        brew install autoconf-archive || true
-        brew install libtool || true
       shell: bash
 
+    # --- 5. VCPKG BOOTSTRAP (Skips if Cache Restored) ---
     - name: Set up vcpkg (Unix)
       if: runner.os != 'Windows'
       run: |
@@ -118,9 +112,9 @@ runs:
     - name: Set up vcpkg (Windows)
       if: runner.os == 'Windows'
       run: |
-        if (!(Test-Path "${{ github.workspace }}/vcpkg/.git")) {
-          git clone https://github.com/microsoft/vcpkg.git "${{ github.workspace }}/vcpkg"
-          cd "${{ github.workspace }}/vcpkg"
+        if (!(Test-Path "${{ github.workspace }}\vcpkg\.git")) {
+          git clone https://github.com/microsoft/vcpkg.git "${{ github.workspace }}\vcpkg"
+          cd "${{ github.workspace }}\vcpkg"
           git checkout ${{ inputs.vcpkg-tag }}
           .\bootstrap-vcpkg.bat
         } else {
@@ -128,65 +122,30 @@ runs:
         }
       shell: pwsh
 
+    # --- 6. AUTHENTICATION ---
     - name: Add NuGet sources (Windows)
       if: ${{ runner.os == 'Windows' && inputs.platform != 'windows-arm64' }}
       run: |
         $nuget = & "${{ env.VCPKG_EXE }}" fetch nuget | Select-Object -Last 1
-        & $nuget sources add `
-          -Source "${{ env.FEED_URL }}" `
-          -StorePasswordInClearText `
-          -Name GitHubPackages `
-          -UserName "${{ env.USERNAME }}" `
-          -Password "${{ inputs.github-token }}"
-        & $nuget setapikey "${{ inputs.github-token }}" `
-          -Source "${{ env.FEED_URL }}"
+        & $nuget sources add -Source "${{ env.FEED_URL }}" -StorePasswordInClearText -Name GitHubPackages -UserName "${{ env.USERNAME }}" -Password "${{ inputs.github-token }}"
+        & $nuget setapikey "${{ inputs.github-token }}" -Source "${{ env.FEED_URL }}"
       shell: pwsh
 
     - name: Add NuGet sources (Unix)
       if: runner.os != 'Windows'
       run: |
-        mono `${{ env.VCPKG_EXE }} fetch nuget | tail -n 1` \
-          sources add \
-          -Source "${{ env.FEED_URL }}" \
-          -StorePasswordInClearText \
-          -Name GitHubPackages \
-          -UserName "${{ env.USERNAME }}" \
-          -Password "${{ inputs.github-token }}"
-        mono `${{ env.VCPKG_EXE }} fetch nuget | tail -n 1` \
-          setapikey "${{ inputs.github-token }}" \
-          -Source "${{ env.FEED_URL }}"
+        mono `${{ env.VCPKG_EXE }} fetch nuget | tail -n 1` sources add -Source "${{ env.FEED_URL }}" -StorePasswordInClearText -Name GitHubPackages -UserName "${{ env.USERNAME }}" -Password "${{ inputs.github-token }}"
+        mono `${{ env.VCPKG_EXE }} fetch nuget | tail -n 1` setapikey "${{ inputs.github-token }}" -Source "${{ env.FEED_URL }}"
       shell: bash
 
-    # Debug step — remove once caching is confirmed working
+    # --- 7. DEBUGGING ---
     - name: Debug vcpkg cache contents (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
         Write-Host "=== vcpkg-cache contents ==="
-        if (Test-Path "${{ github.workspace }}/vcpkg-cache") {
-          Get-ChildItem -Recurse "${{ github.workspace }}/vcpkg-cache" | Select-Object FullName, Length
+        if (Test-Path "${{ github.workspace }}\vcpkg-cache") {
+          Get-ChildItem -Recurse "${{ github.workspace }}\vcpkg-cache" | Select-Object FullName, Length
         } else {
           Write-Host "vcpkg-cache directory does not exist yet."
         }
-        Write-Host "=== vcpkg/downloads contents ==="
-        if (Test-Path "${{ github.workspace }}/vcpkg/downloads") {
-          Get-ChildItem "${{ github.workspace }}/vcpkg/downloads" | Select-Object Name
-        } else {
-          Write-Host "downloads directory does not exist yet."
-        }
       shell: pwsh
-
-    # SAVE vcpkg tool — only if it wasn't restored from cache
-    - name: Save vcpkg tool (windows-arm64)
-      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-vcpkg-tool.outputs.cache-hit != 'true' }}
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ github.workspace }}/vcpkg
-        key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
-
-    # SAVE vcpkg binary cache — always, so partial builds are preserved on failure
-    - name: Save vcpkg binary cache (windows-arm64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache/save@v4
-      with:
-        path: ${{ github.workspace }}/vcpkg-cache
-        key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
