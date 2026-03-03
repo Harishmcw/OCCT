@@ -70,13 +70,26 @@ runs:
     # RUN ONLY THE FAILING TEST
     - name: Run DE Wrapper Test with Debug Output
       run: |
+        :: 1. Force Tcl into the PATH for this specific process
+        set "PATH=C:\Tcltk\bin;%PATH%"
+        
+        :: 2. Verify dependencies exist (Diagnostic)
+        echo Checking for required DLLs...
+        if not exist "C:\Tcltk\bin\tcl86t.dll" echo WARNING: tcl86t.dll not found in C:\Tcltk\bin
+        
         cd install
+        
+        :: 3. Setup OCCT environment
         call env.bat vc14 win64 release
+        
+        :: 4. Create the test script
         echo testgrid de_wrapper configuration A1 > run_test.tcl
         echo puts "=== Checking Tcl Interpreter ===" >> run_test.tcl
         echo puts [info patchlevel] >> run_test.tcl
         echo puts "=== CSF Variables ===" >> run_test.tcl
         echo puts $::env(CSF_TestScriptsPath) >> run_test.tcl
+        
+        :: 5. Run the executable
         DRAWEXE.exe -v -f run_test.tcl
       shell: cmd
       env:
