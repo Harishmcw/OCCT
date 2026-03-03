@@ -162,6 +162,7 @@ runs:
                 -D BUILD_GTEST=ON `
                 -D BUILD_CPP_STANDARD=C++17 `
                 -D INSTALL_GTEST=ON `
+                -D BUILD_INCLUDE_SYMLINK=OFF `
                 ${{ inputs.additional-cmake-flags }} ..
           echo "Configuration completed successfully for Windows"
       shell: pwsh
