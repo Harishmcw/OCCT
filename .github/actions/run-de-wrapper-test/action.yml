@@ -68,30 +68,29 @@ runs:
       shell: cmd
  
     # RUN ONLY THE FAILING TEST
-    - name: Run DE Wrapper Test with Debug Output
+# RUN ONLY THE FAILING TEST
+    - name: Run DE Wrapper Test
+      shell: cmd
       run: |
-        :: 1. Force Tcl into the PATH for this specific process
-        set "PATH=C:\Tcltk\bin;%PATH%"
+        @echo off
+        :: 1. Define paths using GitHub Expressions
+        set "TCL_BIN=C:\Tcltk\bin"
+        set "VCPKG_BIN=${{ github.workspace }}\build\vcpkg_installed\arm64-windows\bin"
         
-        :: 2. Verify dependencies exist (Diagnostic)
-        echo Checking for required DLLs...
-        if not exist "C:\Tcltk\bin\tcl86t.dll" echo WARNING: tcl86t.dll not found in C:\Tcltk\bin
+        :: 2. Apply to Path for this local session
+        set "PATH=%TCL_BIN%;%VCPKG_BIN%;%PATH%"
         
+        :: 3. Navigate and Setup OCCT
         cd install
-        
-        :: 3. Setup OCCT environment
         call env.bat vc14 win64 release
         
         :: 4. Create the test script
         echo testgrid de_wrapper configuration A1 > run_test.tcl
         echo puts "=== Checking Tcl Interpreter ===" >> run_test.tcl
         echo puts [info patchlevel] >> run_test.tcl
-        echo puts "=== CSF Variables ===" >> run_test.tcl
-        echo puts $::env(CSF_TestScriptsPath) >> run_test.tcl
         
-        :: 5. Run the executable
+        :: 5. Run the app
         DRAWEXE.exe -v -f run_test.tcl
-      shell: cmd
       env:
         LIBGL_ALWAYS_SOFTWARE: 1
         CSF_TestScriptsPath: ${{ github.workspace }}/tests
