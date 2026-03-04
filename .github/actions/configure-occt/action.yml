@@ -3,7 +3,7 @@ description: 'Setup vcpkg and configure OCCT on a specific platform without buil
 
 inputs:
   platform:
-    description: 'Platform (windows, macos, linux)'
+    description: 'Platform (windows, windows-arm64, macos, linux)'
     required: true
   compiler:
     description: 'Compiler (msvc, clang, gcc)'
@@ -39,6 +39,68 @@ runs:
       uses: ./.github/actions/vcpkg-setup
       with:
         github-token: ${{ inputs.github-token }}
+
+    - name: Restore Tcl/Tk/Thread cache (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      id: cache-tcltk
+      uses: actions/cache/restore@v4
+      with:
+        path: C:\Tcltk
+        key: tcl-tk-thread-windows-arm64
+
+    - name: Build Tcl/Tk/Thread (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-tcltk.outputs.cache-hit != 'true' }}
+      shell: cmd
+      run: |
+        call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" arm64
+
+        rem ===== Tcl 8.6.15 =====
+        git clone https://github.com/tcltk/tcl.git
+        cd tcl
+        git checkout core-8-6-15
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk
+        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcltk
+        cd ..\..
+
+        rem ===== Tk 8.6.15 =====
+        git clone https://github.com/tcltk/tk.git
+        cd tk
+        git checkout core-8-6-15
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+        nmake -f makefile.vc install-binaries install-libraries INSTALLDIR=C:\Tcltk TCLDIR=%GITHUB_WORKSPACE%\tcl
+        cd ..\..
+
+        rem ===== Thread 2.8.10 =====
+        git clone https://github.com/tcltk/thread.git
+        cd thread
+        git checkout thread-2-8-10
+        cd win
+        nmake -f makefile.vc INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
+        nmake -f makefile.vc install INSTALLDIR=C:\Tcltk TCLDIR=C:\Tcltk
+
+        echo Done building Tcl, Tk, and Thread for Windows ARM64
+
+    - name: Save Tcl/Tk/Thread cache (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' && steps.cache-tcltk.outputs.cache-hit != 'true' }}
+      uses: actions/cache/save@v4
+      with:
+        path: C:\Tcltk
+        key: tcl-tk-thread-windows-arm64
+
+    - name: Add Tcl/Tk to PATH (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: echo "C:\Tcltk\bin" >> $env:GITHUB_PATH
+      shell: pwsh
+
+    - name: Upload Tcl/Tk/Thread artifact (Windows ARM64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/upload-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+        overwrite: true
 
     - name: Download and extract Mesa3D (Windows)
       if: ${{ inputs.platform == 'windows' }}
@@ -101,6 +163,43 @@ runs:
                 -D INSTALL_GTEST=ON `
                 ${{ inputs.additional-cmake-flags }} ..
           echo "Configuration completed successfully for Windows"
+      shell: pwsh
+
+    - name: Configure OCCT (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+          mkdir build
+          cd build
+          cmake -G "Visual Studio 17 2022" `
+                -A ARM64 `
+                -D USE_FREETYPE=ON `
+                -D USE_TK=ON `
+                -D 3RDPARTY_TCL_DIR="C:/Tcltk" `
+                -D 3RDPARTY_TCL_INCLUDE_DIR="C:/Tcltk/include" `
+                -D 3RDPARTY_TK_DIR="C:/Tcltk" `
+                -D 3RDPARTY_TK_INCLUDE_DIR="C:/Tcltk/include" `
+                -D BUILD_USE_PCH=${{ inputs.build-use-pch }} `
+                -D BUILD_OPT_PROFILE=${{ inputs.build-opt-profile }} `
+                -D BUILD_INCLUDE_SYMLINK=ON `
+                -D CMAKE_BUILD_TYPE=${{ inputs.cmake-build-type }} `
+                -D INSTALL_DIR=${{ github.workspace }}/install `
+                -D BUILD_USE_VCPKG=ON `
+                -D VCPKG_TARGET_TRIPLET=arm64-windows `
+                -D USE_D3D=ON `
+                -D USE_DRACO=ON `
+                -D USE_FFMPEG=ON `
+                -D USE_FREEIMAGE=ON `
+                -D USE_GLES2=ON `
+                -D USE_OPENVR=OFF `
+                -D USE_VTK=${{ inputs.use-vtk }} `
+                -D USE_TBB=ON `
+                -D USE_RAPIDJSON=ON `
+                -D USE_OPENGL=ON `
+                -D BUILD_GTEST=ON `
+                -D BUILD_CPP_STANDARD=C++17 `
+                -D INSTALL_GTEST=ON `
+                ${{ inputs.additional-cmake-flags }} ..
+          echo "Configuration completed successfully for Windows-arm64"
       shell: pwsh
 
     - name: Configure OCCT (macOS)
