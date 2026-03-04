@@ -47,36 +47,35 @@ runs:
     - name: Override binary source for windows-arm64
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
-        echo "VCPKG_BINARY_SOURCES=clear;files,${{ github.workspace }}\vcpkg-cache,readwrite" >> $env:GITHUB_ENV
-        echo "VCPKG_DOWNLOADS=${{ github.workspace }}\vcpkg\downloads" >> $env:GITHUB_ENV
+        echo "VCPKG_BINARY_SOURCES=clear;files,C:\vcpkg-cache,readwrite" >> $env:GITHUB_ENV
+        echo "VCPKG_DOWNLOADS=C:\vcpkg-downloads" >> $env:GITHUB_ENV
       shell: pwsh
 
-    # --- 2. CACHING (RESTORE & REGISTER POST-JOB SAVE) ---
-    - name: Cache vcpkg tool (windows-arm64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
-      with:
-        path: ${{ github.workspace }}\vcpkg
-        key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
-
-    - name: Cache vcpkg binary cache (windows-arm64)
-      if: ${{ inputs.platform == 'windows-arm64' }}
-      uses: actions/cache@v4
-      with:
-        path: ${{ github.workspace }}\vcpkg-cache
-        key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
-        restore-keys: |
-          vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
-          vcpkg-binary-windows-arm64-
-
-    # --- 3. DIRECTORY VALIDATION (Fixes "Path(s) do not exist" warning) ---
-    - name: Ensure directories exist (windows-arm64)
+    # --- 2. PERSISTENT CACHE DIRS (Self-hosted) ---
+    - name: Ensure persistent cache dirs exist (windows-arm64)
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
-        if (!(Test-Path "${{ github.workspace }}\vcpkg-cache")) { 
-          New-Item -ItemType Directory -Force -Path "${{ github.workspace }}\vcpkg-cache" 
-        }
+        if (!(Test-Path "C:\vcpkg-cache")) { New-Item -ItemType Directory -Force -Path "C:\vcpkg-cache" }
+        if (!(Test-Path "C:\vcpkg-downloads")) { New-Item -ItemType Directory -Force -Path "C:\vcpkg-downloads" }
       shell: pwsh
+
+    # --- 3. CACHING (Disabled for self-hosted - vcpkg persists on disk) ---
+    # - name: Cache vcpkg tool (windows-arm64)
+    #   if: ${{ inputs.platform == 'windows-arm64' }}
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ${{ github.workspace }}\vcpkg
+    #     key: vcpkg-tool-windows-arm64-${{ inputs.vcpkg-tag }}
+
+    # - name: Cache vcpkg binary cache (windows-arm64)
+    #   if: ${{ inputs.platform == 'windows-arm64' }}
+    #   uses: actions/cache@v4
+    #   with:
+    #     path: ${{ github.workspace }}\vcpkg-cache
+    #     key: vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-${{ hashFiles('**/vcpkg.json', '**/vcpkg-configuration.json') }}
+    #     restore-keys: |
+    #       vcpkg-binary-windows-arm64-${{ inputs.vcpkg-tag }}-
+    #       vcpkg-binary-windows-arm64-
 
     # --- 4. PACKAGE INSTALLATION ---
     - name: Install required packages (Linux)
@@ -143,9 +142,9 @@ runs:
       if: ${{ inputs.platform == 'windows-arm64' }}
       run: |
         Write-Host "=== vcpkg-cache contents ==="
-        if (Test-Path "${{ github.workspace }}\vcpkg-cache") {
-          Get-ChildItem -Recurse "${{ github.workspace }}\vcpkg-cache" | Select-Object FullName, Length
+        if (Test-Path "C:\vcpkg-cache") {
+          Get-ChildItem -Recurse "C:\vcpkg-cache" | Select-Object FullName, Length
         } else {
-          Write-Host "vcpkg-cache directory does not exist yet."
+          Write-Host "C:\vcpkg-cache directory does not exist yet."
         }
       shell: pwsh
