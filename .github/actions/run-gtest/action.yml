@@ -3,7 +3,7 @@ description: 'Execute GTest suite and validate results'
 
 inputs:
   platform:
-    description: 'Platform (windows, macos, linux)'
+    description: 'Platform (windows, windows-arm64, macos, linux)'
     required: true
   compiler:
     description: 'Compiler (msvc, clang, gcc)'
@@ -35,6 +35,19 @@ runs:
       with:
         artifact-name: ${{ inputs.install-artifact-name }}-cache
 
+    - name: Download Tcl/Tk binaries (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      uses: actions/download-artifact@v4
+      with:
+        name: tcl-tk-thread-windows-arm64
+        path: C:\Tcltk
+
+    - name: Add Tcltk to Path (Windows-arm64)
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      shell: cmd
+      run: |
+        echo C:\Tcltk\bin>> %GITHUB_PATH%
+
     - name: Install Linux dependencies
       if: inputs.platform == 'linux'
       shell: bash
@@ -46,13 +59,13 @@ runs:
       uses: ./.github/actions/setup-xvfb-mesa
 
     - name: Set execute permissions on Unix platforms
-      if: inputs.platform != 'windows'
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' }}
       shell: bash
       run: |
         chmod +x install/bin/OpenCascadeGTest
 
     - name: Run OpenCascadeGTest on Windows
-      if: inputs.platform == 'windows'
+      if: inputs.platform == 'windows' || inputs.platform == 'windows-arm64'
       id: run-gtest-windows
       shell: cmd
       run: |
@@ -103,7 +116,7 @@ runs:
         echo "LD_LIBRARY_PATH=$LD_PATHS" >> $GITHUB_ENV
 
     - name: Run OpenCascadeGTest on Unix platforms
-      if: inputs.platform != 'windows'
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' }}
       id: run-gtest-unix
       shell: bash
       env:
@@ -133,7 +146,7 @@ runs:
         retention-days: 15
 
     - name: Check for test failures on Windows
-      if: inputs.platform == 'windows'
+      if: inputs.platform == 'windows' || inputs.platform == 'windows-arm64'
       id: check-failures-windows
       shell: pwsh
       run: |
@@ -148,7 +161,7 @@ runs:
         }
 
     - name: Check for test failures on Unix
-      if: inputs.platform != 'windows'
+      if: ${{ inputs.platform != 'windows' && inputs.platform != 'windows-arm64' }}
       id: check-failures-unix
       shell: bash
       run: |
@@ -165,7 +178,7 @@ runs:
       id: check-failures
       shell: bash
       run: |
-        if [ "${{ inputs.platform }}" == "windows" ]; then
+        if [ "${{ inputs.platform }}" == "windows" ] || [ "${{ inputs.platform }}" == "windows-arm64" ]; then
           echo "has_failures=${{ steps.check-failures-windows.outputs.has_failures }}" >> $GITHUB_OUTPUT
           echo "crashed=false" >> $GITHUB_OUTPUT
         else
