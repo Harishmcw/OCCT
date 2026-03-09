@@ -65,10 +65,10 @@ runs:
             Copy-Item "$vcpkg_manual\*" "$vcpkg_bin\" -Force -ErrorAction SilentlyContinue
         }
         
-          # Set library search paths
-          $current_path = $env:PATH
-          echo "PATH=$vcpkg_bin;$vcpkg_lib;$vcpkg_manual;$current_path" >> $env:GITHUB_ENV
-          shell: pwsh
+        # Set library search paths
+        $current_path = $env:PATH
+        echo "PATH=$vcpkg_bin;$vcpkg_lib;$vcpkg_manual;$current_path" >> $env:GITHUB_ENV
+      shell: pwsh
 
 
     - name: Copy manual-link libraries and set paths for Linux
