@@ -9,6 +9,9 @@ inputs:
     description: 'Build directory where vcpkg_installed should be restored'
     required: false
     default: 'build'
+  platform:
+    description: 'Platform (windows, windows-arm64, macos, linux)'
+    required: true
 
 runs:
   using: "composite"
@@ -28,11 +31,29 @@ runs:
       shell: bash
 
     - name: Copy manual-link libraries and set paths for Windows
-      if: runner.os == 'Windows'
+      if: ${{ inputs.platform == 'windows' }}
       run: |
         $vcpkg_bin = "${{ inputs.build-directory }}/vcpkg_installed/x64-windows/bin"
         $vcpkg_lib = "${{ inputs.build-directory }}/vcpkg_installed/x64-windows/lib"
         $vcpkg_manual = "${{ inputs.build-directory }}/vcpkg_installed/x64-windows/lib/manual-link"
+        
+        # Copy manual-link DLLs to bin directory for runtime access
+        if (Test-Path $vcpkg_manual) {
+          Write-Host "Copying manual-link libraries to bin directory"
+          Copy-Item "$vcpkg_manual\*" "$vcpkg_bin\" -Force -ErrorAction SilentlyContinue
+        }
+        
+        # Set library search paths
+        $current_path = $env:PATH
+        echo "PATH=$vcpkg_bin;$vcpkg_lib;$vcpkg_manual;$current_path" >> $env:GITHUB_ENV
+      shell: pwsh
+
+    - name: Copy manual-link libraries and set paths for Windows-arm64
+      if: ${{ inputs.platform == 'windows-arm64' }}
+      run: |
+        $vcpkg_bin = "${{ inputs.build-directory }}/vcpkg_installed/arm64-windows/bin"
+        $vcpkg_lib = "${{ inputs.build-directory }}/vcpkg_installed/arm64-windows/lib"
+        $vcpkg_manual = "${{ inputs.build-directory }}/vcpkg_installed/arm64-windows/lib/manual-link"
         
         # Copy manual-link DLLs to bin directory for runtime access
         if (Test-Path $vcpkg_manual) {
